@@ -15,7 +15,7 @@ export function FinishScreen({
 }: FinishScreenProps) {
   return (
     <section className="screen finish-screen">
-      <div className="panel">
+      <div className="panel pixel-panel">
         <p className="eyebrow">Cíl dosažen</p>
 
         <h1>Našel jsi zlaté střevíce!</h1>
@@ -24,11 +24,11 @@ export function FinishScreen({
         <p className="result-time">{formatTimeMs(timeMs)}</p>
 
         <div className="button-row">
-          <button type="button" onClick={onRestart}>
+          <button type="button" className="pixel-button primary-button" onClick={onRestart}>
             Hrát znovu
           </button>
 
-          <button type="button" className="secondary-button" onClick={onShowLeaderboard}>
+          <button type="button" className="pixel-button secondary-button" onClick={onShowLeaderboard}>
             Leaderboard
           </button>
         </div>

@@ -19,7 +19,7 @@ export function GameHud({ elapsedMs, playerName, onBackToMenu }: GameHudProps) {
         <strong>{formatTimeMs(elapsedMs)}</strong>
       </div>
 
-      <button type="button" className="secondary-button" onClick={onBackToMenu}>
+      <button type="button" className="pixel-button secondary-button hud-button" onClick={onBackToMenu}>
         Menu
       </button>
     </div>

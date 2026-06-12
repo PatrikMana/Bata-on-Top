@@ -1,49 +1,89 @@
+import type { FormEvent } from 'react';
+import type { AvailableMap } from '../game/map/availableMaps';
+
 type StartScreenProps = {
-  playerName: string;
-  isStarting: boolean;
-  errorMessage?: string;
-  onPlayerNameChange: (value: string) => void;
-  onStart: () => void;
-};
+  maps: readonly AvailableMap[];
+  onBack?: () => void;
+  onSelectMap?: (map: AvailableMap) => void;
+  onShowLeaderboard?: () => void;
+} & (
+  | {
+      mode: 'menu';
+      onStart: () => void;
+    }
+  | {
+      mode: 'map-select';
+      onStart?: never;
+    }
+);
 
 export function StartScreen({
-  playerName,
-  isStarting,
-  errorMessage,
-  onPlayerNameChange,
+  mode,
+  maps,
+  onBack,
+  onSelectMap,
+  onShowLeaderboard,
   onStart,
 }: StartScreenProps) {
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    onStart();
+    onStart?.();
+  }
+
+  if (mode === 'map-select') {
+    return (
+      <section className="screen menu-screen">
+        <div className="panel pixel-panel map-panel">
+          <h1>Vyber mapu</h1>
+
+          <p className="screen-description">Zvol věž, na kterou se chceš vyšplhat.</p>
+
+          <div className="map-grid">
+            {maps.map((map) => (
+              <article key={map.id} className="map-card">
+                <span className="map-favorite" aria-hidden="true">
+                  *
+                </span>
+
+                <h2>{map.name}</h2>
+
+                <button
+                  type="button"
+                  className="pixel-button primary-button"
+                  onClick={() => onSelectMap?.(map)}
+                >
+                  Vybrat mapu
+                </button>
+              </article>
+            ))}
+          </div>
+
+          <button type="button" className="pixel-button ghost-button full-button" onClick={onBack}>
+            Zpět do menu
+          </button>
+        </div>
+      </section>
+    );
   }
 
   return (
-    <section className="screen start-screen">
-      <div className="panel">
-        <p className="eyebrow">Baťa / MDC climbing challenge</p>
+    <section className="screen menu-screen">
+      <div className="panel pixel-panel main-panel">
+        <p className="brand-tag">Baťa / MDC</p>
 
-        <h1>Bata on Top</h1>
+        <h1>Baťa on Top</h1>
 
         <p className="screen-description">
-          Vyšplhej pomocí tkaničky až na vrchol a najdi zlaté střevíce.
+          Vyšvihni Pjota až na vrchol věže a najdi jeho zlaté střevíce.
         </p>
 
         <form onSubmit={handleSubmit} className="start-form">
-          <label htmlFor="player-name">Nickname</label>
+          <button type="submit" className="pixel-button primary-button">
+            Hrát
+          </button>
 
-          <input
-            id="player-name"
-            value={playerName}
-            maxLength={24}
-            placeholder="Např. Patrik"
-            onChange={(event) => onPlayerNameChange(event.target.value)}
-          />
-
-          {errorMessage && <p className="error-message">{errorMessage}</p>}
-
-          <button type="submit" disabled={isStarting}>
-            {isStarting ? 'Startuju...' : 'Start hry'}
+          <button type="button" className="pixel-button secondary-button" onClick={onShowLeaderboard}>
+            Leaderboard
           </button>
         </form>
       </div>
