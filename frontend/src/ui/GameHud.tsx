@@ -1,27 +1,15 @@
-import { formatTimeMs } from './formatTime';
+import { formatClockTimeMs } from './formatTime';
 
 type GameHudProps = {
   elapsedMs: number;
   playerName: string;
-  onBackToMenu: () => void;
 };
 
-export function GameHud({ elapsedMs, playerName, onBackToMenu }: GameHudProps) {
+export function GameHud({ elapsedMs, playerName }: GameHudProps) {
   return (
-    <div className="game-hud">
-      <div>
-        <span className="hud-label">Hráč</span>
-        <strong>{playerName}</strong>
-      </div>
-
-      <div>
-        <span className="hud-label">Čas</span>
-        <strong>{formatTimeMs(elapsedMs)}</strong>
-      </div>
-
-      <button type="button" className="pixel-button secondary-button hud-button" onClick={onBackToMenu}>
-        Menu
-      </button>
+    <div className="game-hud" aria-live="polite">
+      <strong>{playerName}</strong>
+      <strong>{formatClockTimeMs(elapsedMs)}</strong>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { FinishScreen } from './ui/FinishScreen';
 import { GameHud } from './ui/GameHud';
 import { Leaderboard } from './ui/Leaderboard';
 import { NicknameModal } from './ui/NicknameModal';
+import { PauseMenuModal } from './ui/PauseMenuModal';
 import { StartScreen } from './ui/StartScreen';
 
 type AppScreen = 'start' | 'map-select' | 'playing' | 'finish' | 'leaderboard';
@@ -21,6 +22,8 @@ function App() {
   const [pendingMap, setPendingMap] = useState<AvailableMap | null>(null);
   const [selectedMap, setSelectedMap] = useState<AvailableMap>(AVAILABLE_MAPS[0]);
   const [startTimeMs, setStartTimeMs] = useState<number | null>(null);
+  const [pauseStartedAtMs, setPauseStartedAtMs] = useState<number | null>(null);
+  const [totalPausedMs, setTotalPausedMs] = useState(0);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [finalTimeMs, setFinalTimeMs] = useState(0);
 
@@ -28,28 +31,58 @@ function App() {
   const [isLeaderboardLoading, setIsLeaderboardLoading] = useState(false);
   const [leaderboardError, setLeaderboardError] = useState<string>();
 
+  const isRunPaused = pauseStartedAtMs !== null;
+
   useEffect(() => {
-    if (screen !== 'playing' || startTimeMs === null) {
+    if (screen !== 'playing' || startTimeMs === null || isRunPaused) {
       return;
     }
 
     const intervalId = window.setInterval(() => {
-      setElapsedMs(Date.now() - startTimeMs);
-    }, 50);
+      setElapsedMs(Date.now() - startTimeMs - totalPausedMs);
+    }, 250);
 
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [screen, startTimeMs]);
+  }, [isRunPaused, screen, startTimeMs, totalPausedMs]);
+
+  useEffect(() => {
+    if (screen !== 'playing') {
+      return;
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== 'Escape' || event.repeat || pauseStartedAtMs !== null) {
+        return;
+      }
+
+      event.preventDefault();
+      setPauseStartedAtMs(Date.now());
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [pauseStartedAtMs, screen]);
 
   function handleShowMapSelect() {
     setScreen('map-select');
   }
 
+  function resetRunClock() {
+    setElapsedMs(0);
+    setFinalTimeMs(0);
+    setTotalPausedMs(0);
+    setPauseStartedAtMs(null);
+    setStartTimeMs(Date.now());
+  }
+
   function startMap(map: AvailableMap) {
     setSelectedMap(map);
-    setElapsedMs(0);
-    setStartTimeMs(Date.now());
+    resetRunClock();
     setScreen('playing');
   }
 
@@ -89,6 +122,19 @@ function App() {
     setNicknameError(undefined);
   }
 
+  function handleResumeRun() {
+    if (pauseStartedAtMs === null) {
+      return;
+    }
+
+    setTotalPausedMs((currentTotal) => currentTotal + Date.now() - pauseStartedAtMs);
+    setPauseStartedAtMs(null);
+  }
+
+  function handleRestartRun() {
+    resetRunClock();
+  }
+
   function handleTemporaryFinish() {
     const time = elapsedMs;
 
@@ -121,6 +167,8 @@ function App() {
     setElapsedMs(0);
     setFinalTimeMs(0);
     setStartTimeMs(null);
+    setPauseStartedAtMs(null);
+    setTotalPausedMs(0);
     setScreen('start');
   }
 
@@ -160,8 +208,8 @@ function App() {
 
   if (screen === 'playing') {
     return (
-      <main className="game-placeholder">
-        <GameHud elapsedMs={elapsedMs} playerName={playerName} onBackToMenu={handleRestart} />
+      <main className="game-placeholder" data-paused={isRunPaused}>
+        <GameHud elapsedMs={elapsedMs} playerName={playerName} />
 
         <div className="game-placeholder-box">
           <h1>{selectedMap.name}</h1>
@@ -171,6 +219,14 @@ function App() {
             Dočasně dokončit run
           </button>
         </div>
+
+        {isRunPaused && (
+          <PauseMenuModal
+            onResume={handleResumeRun}
+            onRestart={handleRestartRun}
+            onBackToMenu={handleRestart}
+          />
+        )}
       </main>
     );
   }
