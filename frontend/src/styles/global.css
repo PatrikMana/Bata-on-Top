@@ -397,29 +397,25 @@ h1 {
 
 .game-placeholder {
   min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: 96px 24px 24px;
+  position: relative;
+  overflow: hidden;
+  padding: 0;
 }
 
-.game-placeholder[data-paused='true'] .game-placeholder-box {
+.game-placeholder[data-paused='true'] .game-shell {
   opacity: 0.45;
 }
 
-.game-placeholder-box {
-  width: min(100%, 720px);
-  min-height: 420px;
-  border: 2px dashed rgba(255, 255, 255, 0.35);
-  display: grid;
-  place-items: center;
-  align-content: center;
-  gap: 16px;
-  text-align: center;
-  padding: 32px;
+.game-shell,
+.phaser-game,
+.phaser-game canvas {
+  width: 100vw !important;
+  height: 100vh !important;
 }
 
-.game-placeholder-box p {
-  color: #b8b8b8;
+.phaser-game canvas {
+  display: block;
+  image-rendering: pixelated;
 }
 
 .result-name {

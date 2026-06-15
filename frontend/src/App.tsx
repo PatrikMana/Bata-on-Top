@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getLeaderboard, type LeaderboardItem } from './api/leaderboardApi';
+import { PhaserGame } from './game/PhaserGame';
 import { AVAILABLE_MAPS, type AvailableMap } from './game/map/availableMaps';
 import { FinishScreen } from './ui/FinishScreen';
 import { GameHud } from './ui/GameHud';
@@ -135,13 +136,6 @@ function App() {
     resetRunClock();
   }
 
-  function handleTemporaryFinish() {
-    const time = elapsedMs;
-
-    setFinalTimeMs(time);
-    setScreen('finish');
-  }
-
   async function loadLeaderboard() {
     setIsLeaderboardLoading(true);
     setLeaderboardError(undefined);
@@ -211,13 +205,8 @@ function App() {
       <main className="game-placeholder" data-paused={isRunPaused}>
         <GameHud elapsedMs={elapsedMs} playerName={playerName} />
 
-        <div className="game-placeholder-box">
-          <h1>{selectedMap.name}</h1>
-          <p>Game canvas bude tady. Později sem vložíme Phaser hru.</p>
-
-          <button type="button" className="pixel-button primary-button" onClick={handleTemporaryFinish}>
-            Dočasně dokončit run
-          </button>
+        <div className="game-shell">
+          <PhaserGame isPaused={isRunPaused} mapId={selectedMap.id} />
         </div>
 
         {isRunPaused && (

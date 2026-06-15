@@ -1,0 +1,54 @@
+{
+  "obstacles": [
+    {
+      "id": "section-1-entry",
+      "type": "normal",
+      "assetId": "platform-normal",
+      "x": 910,
+      "y": 640,
+      "width": 260,
+      "height": 44,
+      "rotation": 0
+    },
+    {
+      "id": "section-1-ice-left",
+      "type": "ice",
+      "assetId": "platform-ice",
+      "x": 430,
+      "y": 520,
+      "width": 280,
+      "height": 42,
+      "rotation": 0
+    },
+    {
+      "id": "section-1-slope-right",
+      "type": "slope",
+      "assetId": "platform-slope",
+      "x": 760,
+      "y": 390,
+      "width": 320,
+      "height": 42,
+      "rotation": 18
+    },
+    {
+      "id": "section-1-small-step",
+      "type": "normal",
+      "assetId": "platform-normal",
+      "x": 360,
+      "y": 260,
+      "width": 220,
+      "height": 44,
+      "rotation": 0
+    },
+    {
+      "id": "section-1-exit",
+      "type": "normal",
+      "assetId": "platform-normal",
+      "x": 670,
+      "y": 120,
+      "width": 260,
+      "height": 44,
+      "rotation": 0
+    }
+  ]
+}
