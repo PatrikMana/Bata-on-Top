@@ -71,7 +71,7 @@ export class Player {
     this.getBody().label = 'player';
   }
 
-  update(deltaMs: number) {
+  update(deltaMs: number, sectionWidth: number) {
     const isGrounded = this.isGrounded();
     const moveDirection = this.getMoveDirection();
     const isJumpDown = this.jumpKey.isDown;
@@ -104,6 +104,7 @@ export class Player {
     if (!isGrounded) {
       this.groundType = null;
       this.recordAirVelocity();
+      this.applyScreenEdgeBounce(sectionWidth);
     }
 
     this.wasJumpDown = isJumpDown;
@@ -197,17 +198,19 @@ export class Player {
       0,
       1,
     );
+    const horizontalCharge = Math.pow(chargeRatio, PLAYER_CONFIG.jumpHorizontalPowerCurve);
+    const verticalCharge = Math.pow(chargeRatio, PLAYER_CONFIG.jumpVerticalPowerCurve);
     const velocityY = Phaser.Math.Linear(
       PLAYER_CONFIG.jumpMinVelocityY,
       PLAYER_CONFIG.jumpMaxVelocityY,
-      chargeRatio,
+      verticalCharge,
     );
     const velocityX =
       moveDirection *
       Phaser.Math.Linear(
         PLAYER_CONFIG.jumpMinVelocityX,
         PLAYER_CONFIG.jumpMaxVelocityX,
-        chargeRatio,
+        horizontalCharge,
       );
 
     this.gameObject.setVelocity(velocityX, velocityY);
@@ -219,12 +222,9 @@ export class Player {
   }
 
   private applyWallBounce(obstacleBody: MatterJS.BodyType) {
-    if (this.scene.time.now - this.lastWallBounceAtMs < PLAYER_CONFIG.wallBounceCooldownMs) {
-      return;
-    }
-
     const playerBody = this.getBody();
     const velocity = playerBody.velocity;
+    const moveDirection = this.getMoveDirection();
     const overlapX =
       Math.min(playerBody.bounds.max.x, obstacleBody.bounds.max.x) -
       Math.max(playerBody.bounds.min.x, obstacleBody.bounds.min.x);
@@ -245,30 +245,116 @@ export class Player {
       return;
     }
 
+    const isPlayerLeftOfObstacle = playerBody.position.x < obstacleBody.position.x;
+    const isPlayerRightOfObstacle = playerBody.position.x > obstacleBody.position.x;
+    const isHoldingIntoWall =
+      (isPlayerLeftOfObstacle && moveDirection > 0) ||
+      (isPlayerRightOfObstacle && moveDirection < 0);
+    const cooldownMs = isHoldingIntoWall
+      ? PLAYER_CONFIG.wallInputBounceCooldownMs
+      : PLAYER_CONFIG.wallBounceCooldownMs;
+
+    if (this.scene.time.now - this.lastWallBounceAtMs < cooldownMs) {
+      return;
+    }
+
     const incomingVelocityX =
       Math.abs(velocity.x) >= PLAYER_CONFIG.wallBounceMinSpeed
         ? velocity.x
         : this.lastAirVelocity.x;
+    const fallbackDirection =
+      Math.abs(velocity.x) > 0.1
+        ? Math.sign(velocity.x)
+        : Math.sign(playerBody.position.x - obstacleBody.position.x) * -1;
+    const resolvedIncomingVelocityX = isHoldingIntoWall
+      ? moveDirection * Math.max(Math.abs(incomingVelocityX), PLAYER_CONFIG.wallBumpSpeed)
+      : Math.abs(incomingVelocityX) >= 0.1
+        ? incomingVelocityX
+        : fallbackDirection * PLAYER_CONFIG.wallBumpSpeed;
 
-    if (Math.abs(incomingVelocityX) < PLAYER_CONFIG.wallBounceMinSpeed) {
+    if (resolvedIncomingVelocityX === 0) {
       return;
     }
 
-    const isHittingLeftSide = incomingVelocityX > 0 && playerBody.position.x < obstacleBody.position.x;
+    const isHittingLeftSide =
+      resolvedIncomingVelocityX > 0 && isPlayerLeftOfObstacle;
     const isHittingRightSide =
-      incomingVelocityX < 0 && playerBody.position.x > obstacleBody.position.x;
+      resolvedIncomingVelocityX < 0 && isPlayerRightOfObstacle;
 
     if (!isHittingLeftSide && !isHittingRightSide) {
       return;
     }
 
     const bounceDirection = isHittingLeftSide ? -1 : 1;
+    const isSoftBump = Math.abs(resolvedIncomingVelocityX) < PLAYER_CONFIG.wallBounceMinSpeed;
     const bounceSpeed = Phaser.Math.Clamp(
-      Math.abs(incomingVelocityX) * PLAYER_CONFIG.wallBounceMultiplier,
-      PLAYER_CONFIG.wallBounceMinSpeed,
+      isSoftBump
+        ? PLAYER_CONFIG.wallBumpSpeed
+        : Math.abs(resolvedIncomingVelocityX) * PLAYER_CONFIG.wallBounceMultiplier,
+      0,
+      PLAYER_CONFIG.wallBounceMaxSpeed,
+    );
+    const separatedX = isHittingLeftSide
+      ? obstacleBody.bounds.min.x - PLAYER_CONFIG.width / 2 - PLAYER_CONFIG.wallBounceSeparationPx
+      : obstacleBody.bounds.max.x + PLAYER_CONFIG.width / 2 + PLAYER_CONFIG.wallBounceSeparationPx;
+
+    this.gameObject.setPosition(separatedX, this.gameObject.y);
+    this.gameObject.setVelocity(
+      bounceDirection * bounceSpeed,
+      velocity.y * PLAYER_CONFIG.wallBounceVerticalDampening,
+    );
+    this.lastWallBounceAtMs = this.scene.time.now;
+    this.lastAirVelocity = {
+      x: bounceDirection * bounceSpeed,
+      y: velocity.y * PLAYER_CONFIG.wallBounceVerticalDampening,
+    };
+  }
+
+  private applyScreenEdgeBounce(sectionWidth: number) {
+    const playerBody = this.getBody();
+    const velocity = playerBody.velocity;
+    const moveDirection = this.getMoveDirection();
+    const incomingVelocityX =
+      Math.abs(velocity.x) >= PLAYER_CONFIG.wallBounceMinSpeed
+        ? velocity.x
+        : this.lastAirVelocity.x;
+    const resolvedIncomingVelocityX =
+      Math.abs(incomingVelocityX) >= 0.1
+        ? incomingVelocityX
+        : moveDirection * PLAYER_CONFIG.wallBumpSpeed;
+    const hitLeftEdge =
+      playerBody.bounds.min.x <= 1 &&
+      (resolvedIncomingVelocityX < -PLAYER_CONFIG.wallBounceMinSpeed || moveDirection < 0);
+    const hitRightEdge =
+      playerBody.bounds.max.x >= sectionWidth - 1 &&
+      (resolvedIncomingVelocityX > PLAYER_CONFIG.wallBounceMinSpeed || moveDirection > 0);
+
+    if (!hitLeftEdge && !hitRightEdge) {
+      return;
+    }
+
+    const isHoldingIntoEdge = (hitLeftEdge && moveDirection < 0) || (hitRightEdge && moveDirection > 0);
+    const cooldownMs = isHoldingIntoEdge
+      ? PLAYER_CONFIG.wallInputBounceCooldownMs
+      : PLAYER_CONFIG.wallBounceCooldownMs;
+
+    if (this.scene.time.now - this.lastWallBounceAtMs < cooldownMs) {
+      return;
+    }
+
+    const bounceDirection = hitLeftEdge ? 1 : -1;
+    const bounceSpeed = Phaser.Math.Clamp(
+      Math.abs(resolvedIncomingVelocityX) < PLAYER_CONFIG.wallBounceMinSpeed
+        ? PLAYER_CONFIG.wallBumpSpeed
+        : Math.abs(resolvedIncomingVelocityX) * PLAYER_CONFIG.wallBounceMultiplier,
+      0,
       PLAYER_CONFIG.wallBounceMaxSpeed,
     );
 
+    this.gameObject.setPosition(
+      hitLeftEdge ? PLAYER_CONFIG.width / 2 + 2 : sectionWidth - PLAYER_CONFIG.width / 2 - 2,
+      this.gameObject.y,
+    );
     this.gameObject.setVelocity(
       bounceDirection * bounceSpeed,
       velocity.y * PLAYER_CONFIG.wallBounceVerticalDampening,

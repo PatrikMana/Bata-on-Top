@@ -57,7 +57,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    this.player.update(delta);
+    this.player.update(delta, this.mapData.definition.sectionWidth);
     this.handleSectionTransition();
   }
 
