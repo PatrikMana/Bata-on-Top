@@ -1,43 +1,223 @@
 {
   "obstacles": [
     {
-      "id": "section-2-entry",
+      "id": "left-entry-a",
       "type": "normal",
       "assetId": "platform-normal",
-      "x": 670,
-      "y": 635,
-      "width": 260,
-      "height": 44,
+      "x": 0,
+      "y": 432,
+      "width": 64,
+      "height": 64,
       "rotation": 0
     },
     {
-      "id": "section-2-left-slope",
-      "type": "slope",
-      "assetId": "platform-slope",
-      "x": 380,
-      "y": 500,
-      "width": 300,
-      "height": 42,
-      "rotation": -18
-    },
-    {
-      "id": "section-2-right-ice",
-      "type": "ice",
-      "assetId": "platform-ice",
-      "x": 900,
-      "y": 365,
-      "width": 260,
-      "height": 42,
+      "id": "left-entry-b",
+      "type": "normal",
+      "assetId": "platform-normal",
+      "x": 64,
+      "y": 432,
+      "width": 64,
+      "height": 64,
       "rotation": 0
     },
     {
-      "id": "section-2-final-step",
+      "id": "left-entry-c",
       "type": "normal",
       "assetId": "platform-normal",
-      "x": 620,
-      "y": 220,
-      "width": 240,
-      "height": 44,
+      "x": 128,
+      "y": 432,
+      "width": 64,
+      "height": 64,
+      "rotation": 0
+    },
+    {
+      "id": "left-entry-d",
+      "type": "normal",
+      "assetId": "platform-normal",
+      "x": 0,
+      "y": 496,
+      "width": 64,
+      "height": 64,
+      "rotation": 0
+    },
+    {
+      "id": "lower-tree-platform-a",
+      "type": "normal",
+      "assetId": "platform-normal",
+      "x": 384,
+      "y": 640,
+      "width": 64,
+      "height": 64,
+      "rotation": 0
+    },
+    {
+      "id": "lower-tree-platform-b",
+      "type": "normal",
+      "assetId": "platform-normal",
+      "x": 448,
+      "y": 640,
+      "width": 64,
+      "height": 64,
+      "rotation": 0
+    },
+    {
+      "id": "lower-tree-platform-c",
+      "type": "normal",
+      "assetId": "platform-normal",
+      "x": 512,
+      "y": 640,
+      "width": 64,
+      "height": 64,
+      "rotation": 0
+    },
+    {
+      "id": "lower-tree-platform-d",
+      "type": "normal",
+      "assetId": "platform-normal",
+      "x": 384,
+      "y": 704,
+      "width": 64,
+      "height": 64,
+      "rotation": 0
+    },
+    {
+      "id": "lower-tree-platform-e",
+      "type": "normal",
+      "assetId": "platform-normal",
+      "x": 448,
+      "y": 704,
+      "width": 64,
+      "height": 64,
+      "rotation": 0
+    },
+    {
+      "id": "lower-tree-platform-f",
+      "type": "normal",
+      "assetId": "platform-normal",
+      "x": 512,
+      "y": 704,
+      "width": 64,
+      "height": 64,
+      "rotation": 0
+    },
+    {
+      "id": "trunk-left-step-a",
+      "type": "normal",
+      "assetId": "platform-normal",
+      "x": 384,
+      "y": 360,
+      "width": 64,
+      "height": 48,
+      "rotation": 0
+    },
+    {
+      "id": "trunk-left-step-b",
+      "type": "normal",
+      "assetId": "platform-normal",
+      "x": 448,
+      "y": 360,
+      "width": 64,
+      "height": 48,
+      "rotation": 0
+    },
+    {
+      "id": "trunk-left-step-c",
+      "type": "normal",
+      "assetId": "platform-normal",
+      "x": 512,
+      "y": 360,
+      "width": 64,
+      "height": 48,
+      "rotation": 0
+    },
+    {
+      "id": "left-wall-grip-a",
+      "type": "normal",
+      "assetId": "platform-normal",
+      "x": 408,
+      "y": 204,
+      "width": 48,
+      "height": 64,
+      "rotation": 0
+    },
+    {
+      "id": "left-wall-grip-b",
+      "type": "normal",
+      "assetId": "platform-normal",
+      "x": 408,
+      "y": 268,
+      "width": 48,
+      "height": 64,
+      "rotation": 0
+    },
+    {
+      "id": "right-wall-grip-a",
+      "type": "normal",
+      "assetId": "platform-normal",
+      "x": 864,
+      "y": 300,
+      "width": 48,
+      "height": 64,
+      "rotation": 0
+    },
+    {
+      "id": "right-wall-grip-b",
+      "type": "normal",
+      "assetId": "platform-normal",
+      "x": 864,
+      "y": 364,
+      "width": 48,
+      "height": 64,
+      "rotation": 0
+    },
+    {
+      "id": "right-side-branch-a",
+      "type": "normal",
+      "assetId": "platform-normal",
+      "x": 1184,
+      "y": 216,
+      "width": 64,
+      "height": 64,
+      "rotation": 0
+    },
+    {
+      "id": "right-side-branch-b",
+      "type": "normal",
+      "assetId": "platform-normal",
+      "x": 1248,
+      "y": 216,
+      "width": 64,
+      "height": 64,
+      "rotation": 0
+    },
+    {
+      "id": "right-side-branch-c",
+      "type": "normal",
+      "assetId": "platform-normal",
+      "x": 1280,
+      "y": 280,
+      "width": 64,
+      "height": 64,
+      "rotation": 0
+    },
+    {
+      "id": "far-right-root-a",
+      "type": "normal",
+      "assetId": "platform-normal",
+      "x": 1216,
+      "y": 536,
+      "width": 64,
+      "height": 64,
+      "rotation": 0
+    },
+    {
+      "id": "far-right-root-b",
+      "type": "normal",
+      "assetId": "platform-normal",
+      "x": 1280,
+      "y": 536,
+      "width": 64,
+      "height": 64,
       "rotation": 0
     },
     {
@@ -45,7 +225,7 @@
       "type": "finish",
       "assetId": "golden-shoes",
       "x": 640,
-      "y": 105,
+      "y": 90,
       "width": 96,
       "height": 72,
       "rotation": 0
