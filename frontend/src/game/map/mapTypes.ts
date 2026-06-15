@@ -42,6 +42,8 @@ export type CreatedLevelObstacle = {
 };
 
 export type CreatedLevel = {
+  activeSectionIndex: number;
+  background: Phaser.GameObjects.Image;
   map: LoadedMapData;
   obstacles: CreatedLevelObstacle[];
 };

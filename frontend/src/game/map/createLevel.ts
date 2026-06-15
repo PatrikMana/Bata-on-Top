@@ -171,7 +171,7 @@ function createSectionZeroGround(scene: Phaser.Scene, map: LoadedMapData) {
     type: 'normal',
     assetId: 'generated-ground',
     x: map.totalWidth / 2,
-    y: map.definition.sectionHeight - GROUND_HEIGHT / 2,
+    y: map.definition.sectionHeight + GROUND_HEIGHT / 2,
     width: map.totalWidth,
     height: GROUND_HEIGHT,
     rotation: 0,
@@ -215,13 +215,18 @@ export function createLevel(
     0,
     map.definition.sectionWidth,
     map.definition.sectionHeight,
+    64,
+    true,
+    true,
+    false,
+    false,
   );
   scene.cameras.main.setBounds(0, 0, map.definition.sectionWidth, map.definition.sectionHeight);
   scene.cameras.main.setScroll(0, 0);
 
   const backgroundTextureKey = getBackgroundTextureKey(mapId, activeSection.index);
 
-  scene.add
+  const background = scene.add
     .image(
       map.definition.sectionWidth / 2,
       map.definition.sectionHeight / 2,
@@ -241,7 +246,23 @@ export function createLevel(
   }
 
   return {
+    activeSectionIndex: activeSection.index,
+    background,
     map,
     obstacles,
   };
+}
+
+export function destroyLevel(scene: Phaser.Scene, level: CreatedLevel) {
+  level.background.destroy();
+
+  for (const obstacle of level.obstacles) {
+    const body = obstacle.gameObject.getData('matterBody') as MatterJS.BodyType | undefined;
+
+    if (body) {
+      scene.matter.world.remove(body);
+    }
+
+    obstacle.gameObject.destroy();
+  }
 }
