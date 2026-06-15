@@ -27,6 +27,7 @@ function App() {
   const [totalPausedMs, setTotalPausedMs] = useState(0);
   const [elapsedMs, setElapsedMs] = useState(0);
   const [finalTimeMs, setFinalTimeMs] = useState(0);
+  const [runInstanceId, setRunInstanceId] = useState(0);
 
   const [leaderboardItems, setLeaderboardItems] = useState<LeaderboardItem[]>([]);
   const [isLeaderboardLoading, setIsLeaderboardLoading] = useState(false);
@@ -83,6 +84,7 @@ function App() {
 
   function startMap(map: AvailableMap) {
     setSelectedMap(map);
+    setRunInstanceId((currentId) => currentId + 1);
     resetRunClock();
     setScreen('playing');
   }
@@ -133,6 +135,7 @@ function App() {
   }
 
   function handleRestartRun() {
+    setRunInstanceId((currentId) => currentId + 1);
     resetRunClock();
   }
 
@@ -206,7 +209,11 @@ function App() {
         <GameHud elapsedMs={elapsedMs} playerName={playerName} />
 
         <div className="game-shell">
-          <PhaserGame isPaused={isRunPaused} mapId={selectedMap.id} />
+          <PhaserGame
+            key={`${selectedMap.id}-${runInstanceId}`}
+            isPaused={isRunPaused}
+            mapId={selectedMap.id}
+          />
         </div>
 
         {isRunPaused && (
