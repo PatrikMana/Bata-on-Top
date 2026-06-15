@@ -18,6 +18,15 @@ export function getMapAssetUrl(mapId: string, assetId: string) {
   return `${MAPS_BASE_PATH}/${mapId}/assets/${assetId}.png`;
 }
 
+export function getMapAssetTileUrl(
+  mapId: string,
+  assetId: string,
+  row: number,
+  column: number,
+) {
+  return `${MAPS_BASE_PATH}/${mapId}/assets/${assetId}/row-${row}-column-${column}.png`;
+}
+
 async function fetchObstaclesJson(mapId: string, sectionIndex: number) {
   const candidates = getObstacleJsonCandidates(mapId, sectionIndex);
 

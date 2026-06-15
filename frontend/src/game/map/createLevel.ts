@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { getMapAssetUrl } from './loadMapData';
+import { getMapAssetTileUrl, getMapAssetUrl } from './loadMapData';
 import type {
   CreatedLevel,
   CreatedLevelObstacle,
@@ -12,6 +12,15 @@ const HOOKABLE_OBSTACLE_TYPES = new Set<ObstacleType>(['normal', 'ice', 'slope']
 const FALLBACK_OBSTACLE_TEXTURE_KEY = 'map:fallback:missing-obstacle';
 const GROUND_OBSTACLE_ID = 'section-0-ground';
 const GROUND_HEIGHT = 64;
+const TILESET_ROWS = 3;
+const TILESET_COLUMNS = 3;
+const ADJACENCY_EPSILON = 2;
+
+const ASSET_ALIASES: Record<string, string> = {
+  'platform-normal': 'brick',
+  'platform-ice': 'brick-frozen',
+  'platform-slope': 'concrete',
+};
 
 export function getSectionWorldTop(map: LoadedMapData, sectionIndex: number) {
   return map.totalHeight - (sectionIndex + 1) * map.definition.sectionHeight;
@@ -23,6 +32,25 @@ export function getBackgroundTextureKey(mapId: string, sectionIndex: number) {
 
 export function getAssetTextureKey(mapId: string, assetId: string) {
   return `map:${mapId}:asset:${assetId}`;
+}
+
+export function getAssetTileTextureKey(
+  mapId: string,
+  assetId: string,
+  row: number,
+  column: number,
+) {
+  return `map:${mapId}:asset:${assetId}:tile:${row}:${column}`;
+}
+
+function getAssetIdCandidates(assetId: string) {
+  const alias = ASSET_ALIASES[assetId];
+
+  return alias ? [assetId, alias] : [assetId];
+}
+
+function getNormalizedAssetId(assetId: string) {
+  return ASSET_ALIASES[assetId] ?? assetId;
 }
 
 function ensureFallbackObstacleTexture(scene: Phaser.Scene) {
@@ -46,14 +74,14 @@ function ensureFallbackObstacleTexture(scene: Phaser.Scene) {
 }
 
 function markObstacleObject(
-  image: Phaser.Physics.Matter.Image,
+  gameObject: Phaser.GameObjects.GameObject,
   obstacle: ObstacleDefinition,
   isHookable: boolean,
 ) {
-  image.setData('obstacleId', obstacle.id);
-  image.setData('obstacleType', obstacle.type);
-  image.setData('assetId', obstacle.assetId);
-  image.setData('isHookable', isHookable);
+  gameObject.setData('obstacleId', obstacle.id);
+  gameObject.setData('obstacleType', obstacle.type);
+  gameObject.setData('assetId', obstacle.assetId);
+  gameObject.setData('isHookable', isHookable);
 }
 
 export function preloadMapAssets(scene: Phaser.Scene, map: LoadedMapData): Promise<void> {
@@ -71,12 +99,29 @@ export function preloadMapAssets(scene: Phaser.Scene, map: LoadedMapData): Promi
   }
 
   for (const assetId of map.assetIds) {
-    const key = getAssetTextureKey(mapId, assetId);
-    obstacleAssetKeys.add(key);
+    for (const assetIdCandidate of getAssetIdCandidates(assetId)) {
+      const key = getAssetTextureKey(mapId, assetIdCandidate);
+      obstacleAssetKeys.add(key);
 
-    if (!scene.textures.exists(key)) {
-      queuedAssets += 1;
-      scene.load.image(key, getMapAssetUrl(mapId, assetId));
+      if (!scene.textures.exists(key)) {
+        queuedAssets += 1;
+        scene.load.image(key, getMapAssetUrl(mapId, assetIdCandidate));
+      }
+
+      for (let row = 1; row <= TILESET_ROWS; row += 1) {
+        for (let column = 1; column <= TILESET_COLUMNS; column += 1) {
+          const tileKey = getAssetTileTextureKey(mapId, assetIdCandidate, row, column);
+          obstacleAssetKeys.add(tileKey);
+
+          if (!scene.textures.exists(tileKey)) {
+            queuedAssets += 1;
+            scene.load.image(
+              tileKey,
+              getMapAssetTileUrl(mapId, assetIdCandidate, row, column),
+            );
+          }
+        }
+      }
     }
   }
 
@@ -111,23 +156,226 @@ export function preloadMapAssets(scene: Phaser.Scene, map: LoadedMapData): Promi
 }
 
 function getObstacleTextureKey(scene: Phaser.Scene, mapId: string, assetId: string) {
-  const textureKey = getAssetTextureKey(mapId, assetId);
+  for (const assetIdCandidate of getAssetIdCandidates(assetId)) {
+    const textureKey = getAssetTextureKey(mapId, assetIdCandidate);
 
-  if (scene.textures.exists(textureKey)) {
-    return textureKey;
+    if (scene.textures.exists(textureKey)) {
+      return textureKey;
+    }
   }
 
   return ensureFallbackObstacleTexture(scene);
 }
 
-function createStaticObstacle(
+function getObstacleTileTextureKey(
+  scene: Phaser.Scene,
+  mapId: string,
+  assetId: string,
+  row: number,
+  column: number,
+) {
+  for (const assetIdCandidate of getAssetIdCandidates(assetId)) {
+    const tileTextureKey = getAssetTileTextureKey(mapId, assetIdCandidate, row, column);
+
+    if (scene.textures.exists(tileTextureKey)) {
+      return tileTextureKey;
+    }
+  }
+
+  return null;
+}
+
+function getObstacleBounds(obstacle: ObstacleDefinition) {
+  return {
+    minX: obstacle.x - obstacle.width / 2,
+    maxX: obstacle.x + obstacle.width / 2,
+    minY: obstacle.y - obstacle.height / 2,
+    maxY: obstacle.y + obstacle.height / 2,
+  };
+}
+
+function rangesOverlap(minA: number, maxA: number, minB: number, maxB: number) {
+  return Math.min(maxA, maxB) - Math.max(minA, minB) > ADJACENCY_EPSILON;
+}
+
+function areSameVisualTileSet(
+  obstacle: ObstacleDefinition,
+  candidate: ObstacleDefinition,
+) {
+  return (
+    candidate.rotation === 0 &&
+    candidate.type === obstacle.type &&
+    getNormalizedAssetId(candidate.assetId) === getNormalizedAssetId(obstacle.assetId)
+  );
+}
+
+function areTouchingObstacles(
+  obstacle: ObstacleDefinition,
+  candidate: ObstacleDefinition,
+) {
+  const bounds = getObstacleBounds(obstacle);
+  const candidateBounds = getObstacleBounds(candidate);
+  const touchesHorizontally =
+    (Math.abs(candidateBounds.maxX - bounds.minX) <= ADJACENCY_EPSILON ||
+      Math.abs(candidateBounds.minX - bounds.maxX) <= ADJACENCY_EPSILON) &&
+    rangesOverlap(bounds.minY, bounds.maxY, candidateBounds.minY, candidateBounds.maxY);
+  const touchesVertically =
+    (Math.abs(candidateBounds.maxY - bounds.minY) <= ADJACENCY_EPSILON ||
+      Math.abs(candidateBounds.minY - bounds.maxY) <= ADJACENCY_EPSILON) &&
+    rangesOverlap(bounds.minX, bounds.maxX, candidateBounds.minX, candidateBounds.maxX);
+
+  return touchesHorizontally || touchesVertically;
+}
+
+function getConnectedObstacleGroup(
+  obstacle: ObstacleDefinition,
+  sectionObstacles: ObstacleDefinition[],
+) {
+  const group = new Set<ObstacleDefinition>();
+  const stack = [obstacle];
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+
+    if (!current || group.has(current)) {
+      continue;
+    }
+
+    group.add(current);
+
+    for (const candidate of sectionObstacles) {
+      if (
+        candidate === current ||
+        group.has(candidate) ||
+        !areSameVisualTileSet(obstacle, candidate) ||
+        !areTouchingObstacles(current, candidate)
+      ) {
+        continue;
+      }
+
+      stack.push(candidate);
+    }
+  }
+
+  return [...group];
+}
+
+function getObstacleGroupBounds(group: ObstacleDefinition[]) {
+  return group.reduce(
+    (bounds, obstacle) => {
+      const obstacleBounds = getObstacleBounds(obstacle);
+
+      return {
+        minX: Math.min(bounds.minX, obstacleBounds.minX),
+        maxX: Math.max(bounds.maxX, obstacleBounds.maxX),
+        minY: Math.min(bounds.minY, obstacleBounds.minY),
+        maxY: Math.max(bounds.maxY, obstacleBounds.maxY),
+      };
+    },
+    {
+      minX: Number.POSITIVE_INFINITY,
+      maxX: Number.NEGATIVE_INFINITY,
+      minY: Number.POSITIVE_INFINITY,
+      maxY: Number.NEGATIVE_INFINITY,
+    },
+  );
+}
+
+function getAutotilePosition(
+  obstacle: ObstacleDefinition,
+  sectionObstacles: ObstacleDefinition[],
+) {
+  if (obstacle.rotation !== 0) {
+    return { row: 2, column: 2 };
+  }
+
+  const obstacleBounds = getObstacleBounds(obstacle);
+  const groupBounds = getObstacleGroupBounds(
+    getConnectedObstacleGroup(obstacle, sectionObstacles),
+  );
+  const row =
+    obstacleBounds.minY <= groupBounds.minY + ADJACENCY_EPSILON
+      ? 1
+      : obstacleBounds.maxY >= groupBounds.maxY - ADJACENCY_EPSILON
+        ? 3
+        : 2;
+  const column =
+    obstacleBounds.minX <= groupBounds.minX + ADJACENCY_EPSILON
+      ? 1
+      : obstacleBounds.maxX >= groupBounds.maxX - ADJACENCY_EPSILON
+        ? 3
+        : 2;
+
+  return { row, column };
+}
+
+function createTiledObstacle(
   scene: Phaser.Scene,
   obstacle: ObstacleDefinition,
+  sectionObstacles: ObstacleDefinition[],
   sectionIndex: number,
   worldX: number,
   worldY: number,
+  mapId: string,
+) {
+  const isHookable = HOOKABLE_OBSTACLE_TYPES.has(obstacle.type);
+  const { row, column } = getAutotilePosition(obstacle, sectionObstacles);
+  const textureKey = getObstacleTileTextureKey(scene, mapId, obstacle.assetId, row, column);
+
+  if (!textureKey) {
+    return null;
+  }
+
+  const rotationRad = Phaser.Math.DegToRad(obstacle.rotation);
+  const body = scene.matter.add.rectangle(worldX, worldY, obstacle.width, obstacle.height, {
+    isStatic: true,
+    isSensor: obstacle.type === 'finish',
+    label: `obstacle:${obstacle.type}:${obstacle.id}`,
+    angle: rotationRad,
+  });
+  const image = scene.add
+    .image(worldX, worldY, textureKey)
+    .setDisplaySize(obstacle.width, obstacle.height)
+    .setRotation(rotationRad)
+    .setDepth(5);
+
+  image.setData('matterBody', body);
+  markObstacleObject(image, obstacle, isHookable);
+
+  return {
+    definition: obstacle,
+    sectionIndex,
+    worldX,
+    worldY,
+    isHookable,
+    gameObject: image,
+  } satisfies CreatedLevelObstacle;
+}
+
+function createStaticObstacle(
+  scene: Phaser.Scene,
+  obstacle: ObstacleDefinition,
+  sectionObstacles: ObstacleDefinition[],
+  sectionIndex: number,
+  worldX: number,
+  worldY: number,
+  mapId: string,
   textureKey: string,
 ) {
+  const tiledObstacle = createTiledObstacle(
+    scene,
+    obstacle,
+    sectionObstacles,
+    sectionIndex,
+    worldX,
+    worldY,
+    mapId,
+  );
+
+  if (tiledObstacle) {
+    return tiledObstacle;
+  }
+
   const isHookable = HOOKABLE_OBSTACLE_TYPES.has(obstacle.type);
   const image = scene.matter.add.image(worldX, worldY, textureKey, undefined, {
     isStatic: true,
@@ -241,7 +489,16 @@ export function createLevel(
     const textureKey = getObstacleTextureKey(scene, mapId, obstacle.assetId);
 
     obstacles.push(
-      createStaticObstacle(scene, obstacle, activeSection.index, worldX, worldY, textureKey),
+      createStaticObstacle(
+        scene,
+        obstacle,
+        activeSection.obstacles,
+        activeSection.index,
+        worldX,
+        worldY,
+        mapId,
+        textureKey,
+      ),
     );
   }
 
