@@ -550,8 +550,8 @@ h1 {
     linear-gradient(90deg, rgba(255, 255, 255, 0.24) 1px, transparent 1px),
     linear-gradient(180deg, rgba(255, 255, 255, 0.24) 1px, transparent 1px);
   background-size:
-    calc(100% / var(--grid-columns)) 100%,
-    100% calc(100% / var(--grid-rows));
+    var(--grid-cell-width) 100%,
+    100% var(--grid-cell-height);
 }
 
 .scene-canvas::after {

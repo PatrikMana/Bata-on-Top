@@ -13,9 +13,9 @@ import {
 const SECTION_WIDTH = 1280;
 const SECTION_HEIGHT = 720;
 const MIN_GRID_COLUMNS = 4;
-const MAX_GRID_COLUMNS = 40;
+const MAX_GRID_COLUMNS = 80;
 const MIN_GRID_ROWS = 3;
-const MAX_GRID_ROWS = 40;
+const MAX_GRID_ROWS = 48;
 
 type Screen = 'menu' | 'create' | 'edit' | 'editor';
 type EditorTool = 'draw' | 'select';
@@ -228,6 +228,10 @@ function getTileUrl(mapId: string, assetId: string, tilePath?: string) {
   return `/api/maps/${mapId}/assets/${assetId}/${tilePath ?? 'row-2-column-2.png'}`;
 }
 
+function getGridCellPercent(cellCount: number) {
+  return `${100 / cellCount}%`;
+}
+
 function App() {
   const [screen, setScreen] = useState<Screen>('menu');
   const [maps, setMaps] = useState<BuilderMap[]>([]);
@@ -238,6 +242,7 @@ function App() {
   const [selectedTilePath, setSelectedTilePath] = useState<string>();
   const [selectedObstacleType, setSelectedObstacleType] = useState<ObstacleType>('normal');
   const [tool, setTool] = useState<EditorTool>('draw');
+  const [isShiftSelecting, setIsShiftSelecting] = useState(false);
   const [selectedCells, setSelectedCells] = useState<Set<string>>(new Set());
   const [selectionStart, setSelectionStart] = useState<CellPosition | null>(null);
   const [isPointerDown, setIsPointerDown] = useState(false);
@@ -261,6 +266,7 @@ function App() {
   const selectedTile = useMemo(() => {
     return selectedAsset?.tiles.find((tile) => tile.path === selectedTilePath) ?? selectedAsset?.tiles[0] ?? null;
   }, [selectedAsset, selectedTilePath]);
+  const activeTool = isShiftSelecting ? 'select' : tool;
 
   async function loadMaps() {
     setIsLoadingMaps(true);
@@ -488,7 +494,7 @@ function App() {
     setIsPointerDown(true);
     event.currentTarget.setPointerCapture(event.pointerId);
 
-    if (tool === 'draw') {
+    if (activeTool === 'draw') {
       lastPaintedCellRef.current = null;
       paintCell(cell);
       return;
@@ -509,7 +515,7 @@ function App() {
       return;
     }
 
-    if (tool === 'draw') {
+    if (activeTool === 'draw') {
       paintCell(cell);
       return;
     }
@@ -589,6 +595,47 @@ function App() {
     }));
     setSelectedCells(new Set());
   }
+
+  useEffect(() => {
+    if (screen !== 'editor') {
+      setIsShiftSelecting(false);
+      return undefined;
+    }
+
+    function isTypingTarget(target: EventTarget | null) {
+      return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (isTypingTarget(event.target)) {
+        return;
+      }
+
+      if (event.key === 'Shift') {
+        setIsShiftSelecting(true);
+        return;
+      }
+
+      if (event.key === 'Delete') {
+        event.preventDefault();
+        deleteSelectedCells();
+      }
+    }
+
+    function handleKeyUp(event: KeyboardEvent) {
+      if (event.key === 'Shift') {
+        setIsShiftSelecting(false);
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [screen, selectedCells]);
 
   function updateGrid(nextValues: Partial<Pick<BuilderSection, 'gridColumns' | 'gridRows'>>) {
     updateActiveSection((section) => ({
@@ -813,7 +860,7 @@ function App() {
                   }}
                 >
                   <span>Sekce {section.index}</span>
-                  <span>{section.gridColumns} x {section.gridRows}</span>
+                  <span>{section.gridColumns} sl. x {section.gridRows} rad.</span>
                 </button>
               ))}
             </div>
@@ -824,14 +871,14 @@ function App() {
               <div className="segmented-control">
                 <button
                   type="button"
-                  className={tool === 'draw' ? 'active' : ''}
+                  className={activeTool === 'draw' ? 'active' : ''}
                   onClick={() => setTool('draw')}
                 >
                   Kreslit
                 </button>
                 <button
                   type="button"
-                  className={tool === 'select' ? 'active' : ''}
+                  className={activeTool === 'select' ? 'active' : ''}
                   onClick={() => setTool('select')}
                 >
                   Select
@@ -839,7 +886,7 @@ function App() {
               </div>
 
               <span>
-                Vybrano: {selectedCells.size}
+                Vybrano: {selectedCells.size} {isShiftSelecting ? '/ Shift select' : ''}
               </span>
             </div>
 
@@ -849,6 +896,8 @@ function App() {
               style={{
                 '--grid-columns': activeSection.gridColumns,
                 '--grid-rows': activeSection.gridRows,
+                '--grid-cell-width': getGridCellPercent(activeSection.gridColumns),
+                '--grid-cell-height': getGridCellPercent(activeSection.gridRows),
                 backgroundImage: activeSection.backgroundUrl ? `url(${activeSection.backgroundUrl})` : undefined,
               } as CSSProperties}
               onPointerDown={handleCanvasPointerDown}
@@ -883,7 +932,7 @@ function App() {
             <section className="tool-group">
               <h2>Grid</h2>
               <label>
-                Horizontalne: {activeSection.gridColumns}
+                Sloupce: {activeSection.gridColumns}
                 <input
                   type="range"
                   min={MIN_GRID_COLUMNS}
@@ -893,7 +942,7 @@ function App() {
                 />
               </label>
               <label>
-                Vertikalne: {activeSection.gridRows}
+                Radky: {activeSection.gridRows}
                 <input
                   type="range"
                   min={MIN_GRID_ROWS}
