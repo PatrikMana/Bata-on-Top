@@ -219,7 +219,7 @@ function createObstacleForCell(
     y: Math.round((cell.row + 0.5) * cellHeight),
     width: Math.round(cellWidth),
     height: Math.round(cellHeight),
-    rotation: type === 'slope' ? -18 : 0,
+    rotation: 0,
     previewTilePath,
   };
 }
@@ -580,6 +580,31 @@ function App() {
         ],
       };
     });
+  }
+
+  function setObstacleType(type: ObstacleType) {
+    setSelectedObstacleType(type);
+
+    if (selectedCells.size === 0) {
+      return;
+    }
+
+    updateActiveSection((section) => ({
+      ...section,
+      obstacles: section.obstacles.map((obstacle) => {
+        const cell = getObstacleCell(section, obstacle);
+
+        if (!selectedCells.has(getCellKey(cell))) {
+          return obstacle;
+        }
+
+        return {
+          ...obstacle,
+          type,
+          rotation: 0,
+        };
+      }),
+    }));
   }
 
   function deleteSelectedCells() {
@@ -1032,7 +1057,7 @@ function App() {
                     key={type}
                     type="button"
                     className={`type-button ${selectedObstacleType === type ? 'active' : ''}`}
-                    onClick={() => setSelectedObstacleType(type)}
+                    onClick={() => setObstacleType(type)}
                   >
                     {type === 'slope' ? 'sikmy' : type}
                   </button>

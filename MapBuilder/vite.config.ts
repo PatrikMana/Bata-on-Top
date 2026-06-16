@@ -5,8 +5,8 @@ import react from '@vitejs/plugin-react';
 import { defineConfig, type Plugin } from 'vite';
 
 const MAPS_DIRECTORY = path.resolve(__dirname, 'maps');
-const DEFAULT_GRID_COLUMNS = 16;
-const DEFAULT_GRID_ROWS = 9;
+const DEFAULT_GRID_COLUMNS = 32;
+const DEFAULT_GRID_ROWS = 18;
 
 type CreateMapRequest = {
   name?: string;
