@@ -2,8 +2,8 @@ import Phaser from 'phaser';
 import { PLAYER_CONFIG } from '../gameplayConfig';
 import { AVAILABLE_MAPS } from '../map/availableMaps';
 import { createLevel, destroyLevel, preloadMapAssets } from '../map/createLevel';
-import { loadMapData } from '../map/loadMapData';
-import type { CreatedLevel, LoadedMapData, ObstacleType } from '../map/mapTypes';
+import { loadMapData, loadMapSection } from '../map/loadMapData';
+import type { CreatedLevel, LoadedMapData, LoadedMapSection, ObstacleType } from '../map/mapTypes';
 import { Player } from '../objects/Player';
 
 export class GameScene extends Phaser.Scene {
@@ -11,6 +11,7 @@ export class GameScene extends Phaser.Scene {
   private level?: CreatedLevel;
   private mapData?: LoadedMapData;
   private player?: Player;
+  private sectionTransitionInProgress = false;
 
   constructor() {
     super('GameScene');
@@ -119,13 +120,37 @@ export class GameScene extends Phaser.Scene {
     const halfPlayerHeight = PLAYER_CONFIG.height / 2;
     const playerY = this.player.gameObject.y;
 
-    if (playerY < -halfPlayerHeight && this.activeSectionIndex < this.mapData.definition.sectionCount - 1) {
-      this.switchSection(this.activeSectionIndex + 1, sectionHeight + playerY);
+    if (playerY < -halfPlayerHeight) {
+      void this.switchSectionIfAvailable(this.activeSectionIndex + 1, sectionHeight + playerY);
       return;
     }
 
     if (playerY > sectionHeight + halfPlayerHeight && this.activeSectionIndex > 0) {
-      this.switchSection(this.activeSectionIndex - 1, playerY - sectionHeight);
+      void this.switchSectionIfAvailable(this.activeSectionIndex - 1, playerY - sectionHeight);
+    }
+  }
+
+  private async switchSectionIfAvailable(nextSectionIndex: number, nextPlayerY: number) {
+    if (!this.player || !this.mapData || !this.level) {
+      return;
+    }
+
+    if (this.sectionTransitionInProgress) {
+      return;
+    }
+
+    this.sectionTransitionInProgress = true;
+
+    try {
+      const sectionLoaded = await this.ensureSectionLoaded(nextSectionIndex);
+
+      if (!sectionLoaded || !this.player || !this.mapData || !this.level) {
+        return;
+      }
+
+      this.switchSection(nextSectionIndex, nextPlayerY);
+    } finally {
+      this.sectionTransitionInProgress = false;
     }
   }
 
@@ -145,6 +170,47 @@ export class GameScene extends Phaser.Scene {
     this.activeSectionIndex = nextSectionIndex;
     this.level = createLevel(this, this.mapData, this.activeSectionIndex);
     this.player.setPositionAndVelocity(nextPlayerX, nextPlayerY, velocity);
+  }
+
+  private async ensureSectionLoaded(sectionIndex: number) {
+    if (!this.mapData) {
+      return false;
+    }
+
+    if (this.mapData.sections.some((section) => section.index === sectionIndex)) {
+      return true;
+    }
+
+    let nextSection: LoadedMapSection;
+
+    try {
+      nextSection = await loadMapSection(this.mapData.definition, sectionIndex);
+    } catch {
+      return false;
+    }
+
+    const nextAssetIds = new Set(this.mapData.assetIds);
+
+    for (const obstacle of nextSection.obstacles) {
+      nextAssetIds.add(obstacle.assetId);
+    }
+
+    const sectionCount = Math.max(this.mapData.definition.sectionCount, sectionIndex + 1);
+
+    this.mapData = {
+      ...this.mapData,
+      definition: {
+        ...this.mapData.definition,
+        sectionCount,
+      },
+      totalHeight: this.mapData.definition.sectionHeight * sectionCount,
+      assetIds: [...nextAssetIds],
+      sections: [...this.mapData.sections, nextSection],
+    };
+
+    await preloadMapAssets(this, this.mapData);
+
+    return true;
   }
 
   private handleShutdown() {

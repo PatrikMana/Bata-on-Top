@@ -66,23 +66,32 @@ async function fetchObstaclesJson(mapId: string, sectionIndex: number) {
   );
 }
 
+export async function loadMapSection(
+  map: AvailableMap,
+  sectionIndex: number,
+): Promise<LoadedMapSection> {
+  const { data, url } = await fetchObstaclesJson(map.id, sectionIndex);
+
+  return {
+    index: sectionIndex,
+    backgroundUrl: getSectionBackgroundUrl(map.id, sectionIndex),
+    obstaclesUrl: url,
+    obstacles: data.obstacles,
+  };
+}
+
 export async function loadMapData(map: AvailableMap): Promise<LoadedMapData> {
   const sections: LoadedMapSection[] = [];
   const assetIds = new Set<string>();
 
   for (let sectionIndex = 0; sectionIndex < map.sectionCount; sectionIndex += 1) {
-    const { data, url } = await fetchObstaclesJson(map.id, sectionIndex);
+    const section = await loadMapSection(map, sectionIndex);
 
-    for (const obstacle of data.obstacles) {
+    for (const obstacle of section.obstacles) {
       assetIds.add(obstacle.assetId);
     }
 
-    sections.push({
-      index: sectionIndex,
-      backgroundUrl: getSectionBackgroundUrl(map.id, sectionIndex),
-      obstaclesUrl: url,
-      obstacles: data.obstacles,
-    });
+    sections.push(section);
   }
 
   return {
