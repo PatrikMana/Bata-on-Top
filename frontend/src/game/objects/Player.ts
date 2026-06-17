@@ -1,14 +1,20 @@
 import Phaser from 'phaser';
 import { PLAYER_CONFIG } from '../gameplayConfig';
 import type { ObstacleType } from '../map/mapTypes';
+import {
+  getIdleFrame,
+  getJumpFrame,
+  PLAYER_ANIMATION_KEYS,
+  PLAYER_TEXTURE_KEYS,
+} from './playerAnimations';
 
 type GroundType = Extract<ObstacleType, 'normal' | 'ice'>;
 
-const PLAYER_TEXTURE_KEY = 'player:fallback';
+const PLAYER_FALLBACK_TEXTURE_KEY = 'player:fallback';
 
 function ensurePlayerTexture(scene: Phaser.Scene) {
-  if (scene.textures.exists(PLAYER_TEXTURE_KEY)) {
-    return PLAYER_TEXTURE_KEY;
+  if (scene.textures.exists(PLAYER_FALLBACK_TEXTURE_KEY)) {
+    return PLAYER_FALLBACK_TEXTURE_KEY;
   }
 
   const graphics = scene.add.graphics();
@@ -20,10 +26,10 @@ function ensurePlayerTexture(scene: Phaser.Scene) {
   graphics.fillStyle(0x111111);
   graphics.fillRect(8, 22, 8, 8);
   graphics.fillRect(26, 22, 8, 8);
-  graphics.generateTexture(PLAYER_TEXTURE_KEY, PLAYER_CONFIG.width, PLAYER_CONFIG.height);
+  graphics.generateTexture(PLAYER_FALLBACK_TEXTURE_KEY, PLAYER_CONFIG.width, PLAYER_CONFIG.height);
   graphics.destroy();
 
-  return PLAYER_TEXTURE_KEY;
+  return PLAYER_FALLBACK_TEXTURE_KEY;
 }
 
 export class Player {
@@ -34,12 +40,15 @@ export class Player {
   private readonly keyD: Phaser.Input.Keyboard.Key;
   private readonly jumpKey: Phaser.Input.Keyboard.Key;
   private readonly scene: Phaser.Scene;
+  private readonly visual: Phaser.GameObjects.Sprite;
   private groundType: GroundType | null = null;
   private lastGroundedAtMs = 0;
   private lastWallBounceAtMs = 0;
   private lastAirVelocity = { x: 0, y: 0 };
   private jumpChargeMs = 0;
   private wasJumpDown = false;
+  private facingDirection: -1 | 1 = 1;
+  private activeVisualKey = '';
 
   constructor(
     scene: Phaser.Scene,
@@ -66,6 +75,11 @@ export class Player {
       .setDisplaySize(PLAYER_CONFIG.width, PLAYER_CONFIG.height)
       .setRectangle(PLAYER_CONFIG.width, PLAYER_CONFIG.height)
       .setFixedRotation()
+      .setVisible(false);
+
+    this.visual = scene.add
+      .sprite(x, y, PLAYER_TEXTURE_KEYS.idle, getIdleFrame())
+      .setDisplaySize(PLAYER_CONFIG.width, PLAYER_CONFIG.height)
       .setDepth(20);
 
     this.getBody().label = 'player';
@@ -76,6 +90,10 @@ export class Player {
     const moveDirection = this.getMoveDirection();
     const isJumpDown = this.jumpKey.isDown;
     const isChargingJump = isGrounded && (isJumpDown || this.jumpChargeMs > 0);
+
+    if (moveDirection !== 0 && !isChargingJump) {
+      this.facingDirection = moveDirection as -1 | 1;
+    }
 
     if (isGrounded && !isChargingJump) {
       this.applyGroundMovement(moveDirection);
@@ -107,6 +125,7 @@ export class Player {
       this.applyScreenEdgeBounce(sectionWidth);
     }
 
+    this.updateVisualState(isGrounded, isChargingJump, moveDirection);
     this.wasJumpDown = isJumpDown;
   }
 
@@ -143,6 +162,7 @@ export class Player {
   setPositionAndVelocity(x: number, y: number, velocity: { x: number; y: number }) {
     this.gameObject.setPosition(x, y);
     this.gameObject.setVelocity(velocity.x, velocity.y);
+    this.syncVisualToBody();
     this.groundType = null;
     this.lastGroundedAtMs = 0;
     this.lastWallBounceAtMs = 0;
@@ -152,6 +172,7 @@ export class Player {
   }
 
   destroy() {
+    this.visual.destroy();
     this.gameObject.destroy();
   }
 
@@ -286,14 +307,7 @@ export class Player {
     }
 
     const bounceDirection = isHittingLeftSide ? -1 : 1;
-    const isSoftBump = Math.abs(resolvedIncomingVelocityX) < PLAYER_CONFIG.wallBounceMinSpeed;
-    const bounceSpeed = Phaser.Math.Clamp(
-      isSoftBump
-        ? PLAYER_CONFIG.wallBumpSpeed
-        : Math.abs(resolvedIncomingVelocityX) * PLAYER_CONFIG.wallBounceMultiplier,
-      0,
-      PLAYER_CONFIG.wallBounceMaxSpeed,
-    );
+    const bounceSpeed = this.getWallBounceSpeed(resolvedIncomingVelocityX);
     const separatedX = isHittingLeftSide
       ? obstacleBody.bounds.min.x - PLAYER_CONFIG.width / 2 - PLAYER_CONFIG.wallBounceSeparationPx
       : obstacleBody.bounds.max.x + PLAYER_CONFIG.width / 2 + PLAYER_CONFIG.wallBounceSeparationPx;
@@ -343,13 +357,7 @@ export class Player {
     }
 
     const bounceDirection = hitLeftEdge ? 1 : -1;
-    const bounceSpeed = Phaser.Math.Clamp(
-      Math.abs(resolvedIncomingVelocityX) < PLAYER_CONFIG.wallBounceMinSpeed
-        ? PLAYER_CONFIG.wallBumpSpeed
-        : Math.abs(resolvedIncomingVelocityX) * PLAYER_CONFIG.wallBounceMultiplier,
-      0,
-      PLAYER_CONFIG.wallBounceMaxSpeed,
-    );
+    const bounceSpeed = this.getWallBounceSpeed(resolvedIncomingVelocityX);
 
     this.gameObject.setPosition(
       hitLeftEdge ? PLAYER_CONFIG.width / 2 + 2 : sectionWidth - PLAYER_CONFIG.width / 2 - 2,
@@ -372,6 +380,105 @@ export class Player {
     if (Math.abs(velocity.x) >= PLAYER_CONFIG.wallBounceMinSpeed) {
       this.lastAirVelocity = { x: velocity.x, y: velocity.y };
     }
+  }
+
+  private getWallBounceSpeed(incomingVelocityX: number) {
+    const impactSpeed = Math.abs(incomingVelocityX);
+
+    if (impactSpeed < PLAYER_CONFIG.wallBounceMinSpeed) {
+      return PLAYER_CONFIG.wallBumpSpeed;
+    }
+
+    const impactRatio = Phaser.Math.Clamp(
+      (impactSpeed - PLAYER_CONFIG.wallBounceMinSpeed) /
+        (PLAYER_CONFIG.wallBounceHighImpactSpeed - PLAYER_CONFIG.wallBounceMinSpeed),
+      0,
+      1,
+    );
+    const multiplier = Phaser.Math.Linear(
+      PLAYER_CONFIG.wallBounceLowImpactMultiplier,
+      PLAYER_CONFIG.wallBounceHighImpactMultiplier,
+      impactRatio,
+    );
+
+    return Phaser.Math.Clamp(
+      impactSpeed * multiplier,
+      PLAYER_CONFIG.wallBumpSpeed,
+      PLAYER_CONFIG.wallBounceMaxSpeed,
+    );
+  }
+
+  private updateVisualState(
+    isGrounded: boolean,
+    isChargingJump: boolean,
+    moveDirection: number,
+  ) {
+    const velocity = this.getBody().velocity;
+
+    if (!isGrounded) {
+      const airDirection =
+        Math.abs(velocity.x) > 0.25
+          ? (Math.sign(velocity.x) as -1 | 1)
+          : this.facingDirection;
+
+      this.facingDirection = airDirection;
+      this.setStaticFrame(
+        airDirection === -1 ? PLAYER_TEXTURE_KEYS.jumpLeft : PLAYER_TEXTURE_KEYS.jumpRight,
+        getJumpFrame(airDirection, velocity.y),
+      );
+      return;
+    }
+
+    if (isChargingJump) {
+      this.playAnimation(PLAYER_ANIMATION_KEYS.charge);
+      return;
+    }
+
+    if (moveDirection === 0 || Math.abs(velocity.x) < 0.35) {
+      this.setStaticFrame(PLAYER_TEXTURE_KEYS.idle, getIdleFrame());
+      return;
+    }
+
+    const runDirection = moveDirection !== 0
+      ? (moveDirection as -1 | 1)
+      : (Math.sign(velocity.x) as -1 | 1);
+
+    this.facingDirection = runDirection;
+    this.playAnimation(
+      runDirection === -1 ? PLAYER_ANIMATION_KEYS.runLeft : PLAYER_ANIMATION_KEYS.runRight,
+    );
+  }
+
+  private setStaticFrame(textureKey: string, frameName: string) {
+    const visualKey = `${textureKey}:${frameName}`;
+
+    if (this.activeVisualKey === visualKey) {
+      this.syncVisualToBody();
+      return;
+    }
+
+    this.visual.stop();
+    this.visual.setTexture(textureKey, frameName);
+    this.applyVisualSize();
+    this.activeVisualKey = visualKey;
+  }
+
+  private playAnimation(animationKey: string) {
+    if (this.activeVisualKey !== animationKey) {
+      this.visual.play(animationKey, true);
+      this.activeVisualKey = animationKey;
+    }
+
+    this.applyVisualSize();
+  }
+
+  private applyVisualSize() {
+    this.visual.setDisplaySize(PLAYER_CONFIG.width, PLAYER_CONFIG.height);
+    this.syncVisualToBody();
+  }
+
+  private syncVisualToBody() {
+    this.visual.setPosition(this.gameObject.x, this.gameObject.y);
   }
 
   private getBody() {
