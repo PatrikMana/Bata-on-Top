@@ -1,0 +1,26 @@
+{
+  "name": "Baťa on Top",
+  "short_name": "Baťa on Top",
+  "description": "Pixelová platformovka od stážistů Baťa / MDC. Vyšvihni Pjota na vrchol věže.",
+  "lang": "cs",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#090909",
+  "theme_color": "#e10600",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    {
+      "src": "/favicon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
