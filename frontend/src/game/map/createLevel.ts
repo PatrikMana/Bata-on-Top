@@ -418,6 +418,17 @@ function createStaticObstacle(
   const previewTextureKey = getObstaclePreviewTextureKey(scene, mapId, obstacle);
 
   if (previewTextureKey) {
+    if (obstacle.type === 'slope') {
+      return createSlopeObstacle(
+        scene,
+        obstacle,
+        sectionIndex,
+        worldX,
+        worldY,
+        previewTextureKey,
+      );
+    }
+
     return createSingleTextureObstacle(
       scene,
       obstacle,
@@ -485,6 +496,88 @@ function createSingleTextureObstacle(
   );
   image.setRotation(Phaser.Math.DegToRad(obstacle.rotation));
 
+  markObstacleObject(image, obstacle, isHookable);
+
+  return {
+    definition: obstacle,
+    sectionIndex,
+    worldX,
+    worldY,
+    isHookable,
+    gameObject: image,
+  } satisfies CreatedLevelObstacle;
+}
+
+function getSlopeColliderVertices(obstacle: ObstacleDefinition) {
+  const halfWidth = obstacle.width / 2;
+  const halfHeight = obstacle.height / 2;
+  const previewTilePath = obstacle.previewTilePath?.toLowerCase() ?? '';
+  const isFlippedVertically = previewTilePath.includes('naopak');
+  const leansLeft = previewTilePath.includes('levo');
+
+  if (isFlippedVertically && leansLeft) {
+    return [
+      { x: -halfWidth, y: -halfHeight },
+      { x: halfWidth, y: -halfHeight },
+      { x: -halfWidth, y: halfHeight },
+    ];
+  }
+
+  if (isFlippedVertically) {
+    return [
+      { x: -halfWidth, y: -halfHeight },
+      { x: halfWidth, y: -halfHeight },
+      { x: halfWidth, y: halfHeight },
+    ];
+  }
+
+  if (leansLeft) {
+    return [
+      { x: -halfWidth, y: -halfHeight },
+      { x: halfWidth, y: halfHeight },
+      { x: -halfWidth, y: halfHeight },
+    ];
+  }
+
+  return [
+    { x: halfWidth, y: -halfHeight },
+    { x: halfWidth, y: halfHeight },
+    { x: -halfWidth, y: halfHeight },
+  ];
+}
+
+function createSlopeObstacle(
+  scene: Phaser.Scene,
+  obstacle: ObstacleDefinition,
+  sectionIndex: number,
+  worldX: number,
+  worldY: number,
+  textureKey: string,
+) {
+  const isHookable = HOOKABLE_OBSTACLE_TYPES.has(obstacle.type);
+  const rotationRad = Phaser.Math.DegToRad(obstacle.rotation);
+  const body = scene.matter.add.fromVertices(
+    worldX,
+    worldY,
+    [getSlopeColliderVertices(obstacle)],
+    {
+      isStatic: true,
+      friction: 0,
+      frictionStatic: 0,
+      label: `obstacle:${obstacle.type}:${obstacle.id}`,
+    },
+  ) as MatterJS.BodyType;
+  const image = scene.add
+    .image(worldX, worldY, textureKey)
+    .setDisplaySize(obstacle.width, obstacle.height)
+    .setRotation(rotationRad)
+    .setDepth(5);
+
+  if (rotationRad !== 0) {
+    scene.matter.body.rotate(body, rotationRad);
+  }
+
+  image.setData('matterBody', body);
   markObstacleObject(image, obstacle, isHookable);
 
   return {
