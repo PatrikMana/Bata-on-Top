@@ -6,6 +6,7 @@ export type ObstacleDefinition = {
   id: string;
   type: ObstacleType;
   assetId: string;
+  previewTilePath?: string;
   x: number;
   y: number;
   width: number;

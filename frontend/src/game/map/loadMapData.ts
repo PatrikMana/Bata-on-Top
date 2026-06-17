@@ -27,6 +27,10 @@ export function getMapAssetTileUrl(
   return `${MAPS_BASE_PATH}/${mapId}/assets/${assetId}/row-${row}-column-${column}.png`;
 }
 
+export function getMapAssetFileUrl(mapId: string, assetId: string, filePath: string) {
+  return `${MAPS_BASE_PATH}/${mapId}/assets/${assetId}/${filePath}`;
+}
+
 async function fetchObstaclesJson(mapId: string, sectionIndex: number) {
   const candidates = getObstacleJsonCandidates(mapId, sectionIndex);
 

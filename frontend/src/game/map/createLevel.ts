@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { getMapAssetTileUrl, getMapAssetUrl } from './loadMapData';
+import { getMapAssetFileUrl, getMapAssetTileUrl, getMapAssetUrl } from './loadMapData';
 import type {
   CreatedLevel,
   CreatedLevelObstacle,
@@ -41,6 +41,10 @@ export function getAssetTileTextureKey(
   column: number,
 ) {
   return `map:${mapId}:asset:${assetId}:tile:${row}:${column}`;
+}
+
+export function getAssetFileTextureKey(mapId: string, assetId: string, filePath: string) {
+  return `map:${mapId}:asset:${assetId}:file:${filePath}`;
 }
 
 function getAssetIdCandidates(assetId: string) {
@@ -125,6 +129,31 @@ export function preloadMapAssets(scene: Phaser.Scene, map: LoadedMapData): Promi
     }
   }
 
+  for (const section of map.sections) {
+    for (const obstacle of section.obstacles) {
+      if (!obstacle.previewTilePath) {
+        continue;
+      }
+
+      for (const assetIdCandidate of getAssetIdCandidates(obstacle.assetId)) {
+        const fileKey = getAssetFileTextureKey(
+          mapId,
+          assetIdCandidate,
+          obstacle.previewTilePath,
+        );
+        obstacleAssetKeys.add(fileKey);
+
+        if (!scene.textures.exists(fileKey)) {
+          queuedAssets += 1;
+          scene.load.image(
+            fileKey,
+            getMapAssetFileUrl(mapId, assetIdCandidate, obstacle.previewTilePath),
+          );
+        }
+      }
+    }
+  }
+
   if (queuedAssets === 0) {
     return Promise.resolve();
   }
@@ -179,6 +208,30 @@ function getObstacleTileTextureKey(
 
     if (scene.textures.exists(tileTextureKey)) {
       return tileTextureKey;
+    }
+  }
+
+  return null;
+}
+
+function getObstaclePreviewTextureKey(
+  scene: Phaser.Scene,
+  mapId: string,
+  obstacle: ObstacleDefinition,
+) {
+  if (!obstacle.previewTilePath) {
+    return null;
+  }
+
+  for (const assetIdCandidate of getAssetIdCandidates(obstacle.assetId)) {
+    const textureKey = getAssetFileTextureKey(
+      mapId,
+      assetIdCandidate,
+      obstacle.previewTilePath,
+    );
+
+    if (scene.textures.exists(textureKey)) {
+      return textureKey;
     }
   }
 
@@ -362,6 +415,19 @@ function createStaticObstacle(
   mapId: string,
   textureKey: string,
 ) {
+  const previewTextureKey = getObstaclePreviewTextureKey(scene, mapId, obstacle);
+
+  if (previewTextureKey) {
+    return createSingleTextureObstacle(
+      scene,
+      obstacle,
+      sectionIndex,
+      worldX,
+      worldY,
+      previewTextureKey,
+    );
+  }
+
   const tiledObstacle = createTiledObstacle(
     scene,
     obstacle,
@@ -376,6 +442,24 @@ function createStaticObstacle(
     return tiledObstacle;
   }
 
+  return createSingleTextureObstacle(
+    scene,
+    obstacle,
+    sectionIndex,
+    worldX,
+    worldY,
+    textureKey,
+  );
+}
+
+function createSingleTextureObstacle(
+  scene: Phaser.Scene,
+  obstacle: ObstacleDefinition,
+  sectionIndex: number,
+  worldX: number,
+  worldY: number,
+  textureKey: string,
+) {
   const isHookable = HOOKABLE_OBSTACLE_TYPES.has(obstacle.type);
   const image = scene.matter.add.image(worldX, worldY, textureKey, undefined, {
     isStatic: true,
