@@ -100,7 +100,7 @@ function sendJson(response: ServerResponse, statusCode: number, data: unknown) {
 
 function getMapDirectory(mapId: string) {
   if (!/^[a-z0-9-]+$/.test(mapId)) {
-    throw new Error('Neplatne ID mapy.');
+    throw new Error('errors.invalidMapId');
   }
 
   return path.join(MAPS_DIRECTORY, mapId);
@@ -111,7 +111,7 @@ function safeJoin(baseDirectory: string, ...segments: string[]) {
   const normalizedBase = path.resolve(baseDirectory);
 
   if (targetPath !== normalizedBase && !targetPath.startsWith(`${normalizedBase}${path.sep}`)) {
-    throw new Error('Neplatna cesta.');
+    throw new Error('errors.invalidPath');
   }
 
   return targetPath;
@@ -292,7 +292,7 @@ async function createMap(name: string) {
   const id = slugifyMapName(name);
 
   if (!id) {
-    return { status: 400, body: { message: 'Nazev mapy musi obsahovat aspon jeden znak.' } };
+    return { status: 400, body: { messageKey: 'errors.mapNameRequired' } };
   }
 
   const mapDirectory = path.join(MAPS_DIRECTORY, id);
@@ -301,7 +301,7 @@ async function createMap(name: string) {
     await fs.mkdir(mapDirectory);
   } catch (error) {
     if (isSystemError(error) && error.code === 'EEXIST') {
-      return { status: 409, body: { message: 'Mapa s timto nazvem uz existuje.' } };
+      return { status: 409, body: { messageKey: 'errors.mapAlreadyExists' } };
     }
 
     throw error;
@@ -322,7 +322,7 @@ async function getMapData(mapId: string) {
   const mapDirectory = getMapDirectory(mapId);
 
   if (!(await pathExists(mapDirectory))) {
-    return { status: 404, body: { message: 'Mapa neexistuje.' } };
+    return { status: 404, body: { messageKey: 'errors.mapNotFound' } };
   }
 
   let sectionIndexes = await listSectionIndexes(mapDirectory);
@@ -393,7 +393,7 @@ function dataUrlToBuffer(dataUrl: string) {
   const match = /^data:[^;]+;base64,(?<data>.+)$/u.exec(dataUrl);
 
   if (!match?.groups?.data) {
-    throw new Error('Soubor nema platny data URL format.');
+    throw new Error('errors.invalidDataUrl');
   }
 
   return Buffer.from(match.groups.data, 'base64');
@@ -401,7 +401,7 @@ function dataUrlToBuffer(dataUrl: string) {
 
 async function saveBackground(mapId: string, sectionIndex: number, data: UploadFileRequest) {
   if (!data.dataUrl) {
-    return { status: 400, body: { message: 'Chybi soubor pozadi.' } };
+    return { status: 400, body: { messageKey: 'errors.backgroundMissing' } };
   }
 
   const mapDirectory = getMapDirectory(mapId);
@@ -418,7 +418,7 @@ async function saveBackground(mapId: string, sectionIndex: number, data: UploadF
 
 async function copyBackground(mapId: string, sectionIndex: number) {
   if (sectionIndex <= 0) {
-    return { status: 400, body: { message: 'Prvni sekce nema predchozi pozadi.' } };
+    return { status: 400, body: { messageKey: 'errors.noPreviousBackground' } };
   }
 
   const mapDirectory = getMapDirectory(mapId);
@@ -429,7 +429,7 @@ async function copyBackground(mapId: string, sectionIndex: number) {
   const targetPath = safeJoin(getSectionDirectory(mapDirectory, sectionIndex), 'bg.png');
 
   if (!(await pathExists(sourcePath))) {
-    return { status: 404, body: { message: 'Predchozi sekce nema pozadi.' } };
+    return { status: 404, body: { messageKey: 'errors.previousBackgroundMissing' } };
   }
 
   await ensureSection(mapDirectory, sectionIndex);
@@ -497,7 +497,7 @@ async function importAssets(mapId: string, data: ImportAssetsRequest) {
 
 async function sendFile(response: ServerResponse, filePath: string) {
   if (!(await pathExists(filePath))) {
-    sendJson(response, 404, { message: 'Soubor neexistuje.' });
+    sendJson(response, 404, { messageKey: 'errors.fileNotFound' });
     return;
   }
 
@@ -609,14 +609,17 @@ function mapsApiPlugin(): Plugin {
           }
 
           if (request.method === 'POST') {
-            sendJson(response, 404, { message: 'Endpoint neexistuje.' });
+            sendJson(response, 404, { messageKey: 'errors.endpointNotFound' });
             return;
           }
 
-          sendJson(response, 405, { message: 'Metoda neni podporovana.' });
+          sendJson(response, 405, { messageKey: 'errors.methodNotSupported' });
         } catch (error) {
-          const message = error instanceof Error ? error.message : 'Neocekavana chyba.';
-          sendJson(response, 500, { message });
+          const messageKey =
+            error instanceof Error && error.message.startsWith('errors.')
+              ? error.message
+              : 'errors.unexpected';
+          sendJson(response, 500, { messageKey });
         }
       });
     },

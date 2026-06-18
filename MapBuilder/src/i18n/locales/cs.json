@@ -1,0 +1,104 @@
+{
+  "common": {
+    "backToMenu": "Zpět do menu",
+    "brandTag": "Baťa / MDC",
+    "mapBuilderTag": "Map builder"
+  },
+  "meta": {
+    "title": "Baťa on Top | Map builder",
+    "description": "Samostatný nástroj pro vytváření a úpravu map pro Baťa on Top."
+  },
+  "language": {
+    "cs": "CS",
+    "en": "EN",
+    "switchLabel": "Jazyk"
+  },
+  "menu": {
+    "title": "Map builder",
+    "description": "Samostatný nástroj pro vytváření a úpravu map pro Baťa on Top.",
+    "createMap": "Vytvořit mapu",
+    "editMap": "Upravit mapu"
+  },
+  "create": {
+    "title": "Vytvořit mapu",
+    "description": "Zadej název mapy. Builder vytvoří složku v `MapBuilder/maps` podle slug formátu.",
+    "mapNameLabel": "Název mapy",
+    "mapNamePlaceholder": "Baťa Tower",
+    "submit": "Vytvořit mapu"
+  },
+  "edit": {
+    "title": "Upravit mapu",
+    "description": "Vyber mapu ze složky `MapBuilder/maps`.",
+    "loadingMaps": "Načítám mapy...",
+    "empty": "Zatím tu není žádná mapa k úpravě.",
+    "editButton": "Upravit",
+    "mapsPath": "maps/{{mapId}}"
+  },
+  "editor": {
+    "mapsButton": "Mapy",
+    "menuButton": "Menu",
+    "sectionsTitle": "Sekce",
+    "sectionLabel": "Sekce {{index}}",
+    "sectionGrid": "{{columns}} sl. x {{rows}} ř.",
+    "drawTool": "Kreslit",
+    "selectTool": "Select",
+    "selectionCount": "Vybráno: {{count}}{{shiftSuffix}}",
+    "shiftSelectSuffix": " / Shift select",
+    "gridTitle": "Grid",
+    "columnsLabel": "Sloupce: {{count}}",
+    "rowsLabel": "Řádky: {{count}}",
+    "backgroundTitle": "Pozadí",
+    "uploadBackground": "Nahrát bg.png",
+    "copyPreviousBackground": "Stejné jako předchozí",
+    "blocksTitle": "Bloky",
+    "importAssets": "Import asset skupiny",
+    "noAssets": "Zatím nejsou importované žádné assety.",
+    "typeTitle": "Typ",
+    "typeNormal": "normal",
+    "typeIce": "ice",
+    "typeSlope": "sikmý",
+    "moveTitle": "Posunout",
+    "moveUp": "Nahoru",
+    "moveLeft": "Vlevo",
+    "moveRight": "Vpravo",
+    "moveDown": "Dolů",
+    "deleteSelection": "Smazat výběr"
+  },
+  "saveStatus": {
+    "saved": "Uloženo",
+    "saving": "Ukládám...",
+    "saveError": "Chyba uložení",
+    "savingBackground": "Ukládám pozadí...",
+    "copyingBackground": "Kopíruji pozadí...",
+    "importingAssets": "Importuji assety...",
+    "importError": "Chyba importu",
+    "importedCount": "Importováno {{count}} souborů"
+  },
+  "errors": {
+    "operationFailed": "Operace se nezdařila.",
+    "unexpected": "Neočekávaná chyba.",
+    "invalidMapId": "Neplatné ID mapy.",
+    "invalidPath": "Neplatná cesta.",
+    "mapNameRequired": "Název mapy musí obsahovat alespoň jeden znak.",
+    "mapNameMinLength": "Název mapy musí mít alespoň 2 znaky.",
+    "mapAlreadyExists": "Mapa s tímto názvem už existuje.",
+    "mapNotFound": "Mapa neexistuje.",
+    "invalidDataUrl": "Soubor nemá platný data URL formát.",
+    "backgroundMissing": "Chybí soubor pozadí.",
+    "noPreviousBackground": "První sekce nemá předchozí pozadí.",
+    "previousBackgroundMissing": "Předchozí sekce nemá pozadí.",
+    "fileNotFound": "Soubor neexistuje.",
+    "endpointNotFound": "Endpoint neexistuje.",
+    "methodNotSupported": "Metoda není podporována.",
+    "fileReadFailed": "Soubor se nepodařilo načíst.",
+    "loadMapsFailed": "Mapy se nepodařilo načíst.",
+    "createMapFailed": "Mapu se nepodařilo vytvořit.",
+    "openMapFailed": "Mapu se nepodařilo otevřít.",
+    "saveSectionFailed": "Sekci se nepodařilo uložit.",
+    "selectAssetGroupFirst": "Nejdřív importuj nebo vyber asset skupinu.",
+    "addSectionFailed": "Sekci se nepodařilo přidat.",
+    "uploadBackgroundFailed": "Pozadí se nepodařilo nahrát.",
+    "copyBackgroundFailed": "Pozadí se nepodařilo zkopírovat.",
+    "importAssetsFailed": "Assety se nepodařilo importovat."
+  }
+}

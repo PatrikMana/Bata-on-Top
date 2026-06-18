@@ -1,0 +1,104 @@
+{
+  "common": {
+    "backToMenu": "Back to menu",
+    "brandTag": "Baťa / MDC",
+    "mapBuilderTag": "Map builder"
+  },
+  "meta": {
+    "title": "Baťa on Top | Map builder",
+    "description": "Standalone tool for creating and editing maps for Baťa on Top."
+  },
+  "language": {
+    "cs": "CS",
+    "en": "EN",
+    "switchLabel": "Language"
+  },
+  "menu": {
+    "title": "Map builder",
+    "description": "Standalone tool for creating and editing maps for Baťa on Top.",
+    "createMap": "Create map",
+    "editMap": "Edit map"
+  },
+  "create": {
+    "title": "Create map",
+    "description": "Enter a map name. The builder creates a folder in `MapBuilder/maps` using a slug format.",
+    "mapNameLabel": "Map name",
+    "mapNamePlaceholder": "Baťa Tower",
+    "submit": "Create map"
+  },
+  "edit": {
+    "title": "Edit map",
+    "description": "Choose a map from the `MapBuilder/maps` folder.",
+    "loadingMaps": "Loading maps...",
+    "empty": "There are no maps to edit yet.",
+    "editButton": "Edit",
+    "mapsPath": "maps/{{mapId}}"
+  },
+  "editor": {
+    "mapsButton": "Maps",
+    "menuButton": "Menu",
+    "sectionsTitle": "Sections",
+    "sectionLabel": "Section {{index}}",
+    "sectionGrid": "{{columns}} col. x {{rows}} rows",
+    "drawTool": "Draw",
+    "selectTool": "Select",
+    "selectionCount": "Selected: {{count}}{{shiftSuffix}}",
+    "shiftSelectSuffix": " / Shift select",
+    "gridTitle": "Grid",
+    "columnsLabel": "Columns: {{count}}",
+    "rowsLabel": "Rows: {{count}}",
+    "backgroundTitle": "Background",
+    "uploadBackground": "Upload bg.png",
+    "copyPreviousBackground": "Same as previous",
+    "blocksTitle": "Blocks",
+    "importAssets": "Import asset group",
+    "noAssets": "No assets have been imported yet.",
+    "typeTitle": "Type",
+    "typeNormal": "normal",
+    "typeIce": "ice",
+    "typeSlope": "slope",
+    "moveTitle": "Move",
+    "moveUp": "Up",
+    "moveLeft": "Left",
+    "moveRight": "Right",
+    "moveDown": "Down",
+    "deleteSelection": "Delete selection"
+  },
+  "saveStatus": {
+    "saved": "Saved",
+    "saving": "Saving...",
+    "saveError": "Save error",
+    "savingBackground": "Saving background...",
+    "copyingBackground": "Copying background...",
+    "importingAssets": "Importing assets...",
+    "importError": "Import error",
+    "importedCount": "Imported {{count}} files"
+  },
+  "errors": {
+    "operationFailed": "The operation failed.",
+    "unexpected": "Unexpected error.",
+    "invalidMapId": "Invalid map ID.",
+    "invalidPath": "Invalid path.",
+    "mapNameRequired": "Map name must contain at least one character.",
+    "mapNameMinLength": "Map name must be at least 2 characters.",
+    "mapAlreadyExists": "A map with this name already exists.",
+    "mapNotFound": "Map does not exist.",
+    "invalidDataUrl": "File does not have a valid data URL format.",
+    "backgroundMissing": "Background file is missing.",
+    "noPreviousBackground": "The first section has no previous background.",
+    "previousBackgroundMissing": "Previous section has no background.",
+    "fileNotFound": "File does not exist.",
+    "endpointNotFound": "Endpoint does not exist.",
+    "methodNotSupported": "Method is not supported.",
+    "fileReadFailed": "Failed to read the file.",
+    "loadMapsFailed": "Failed to load maps.",
+    "createMapFailed": "Failed to create the map.",
+    "openMapFailed": "Failed to open the map.",
+    "saveSectionFailed": "Failed to save the section.",
+    "selectAssetGroupFirst": "Import or select an asset group first.",
+    "addSectionFailed": "Failed to add the section.",
+    "uploadBackgroundFailed": "Failed to upload the background.",
+    "copyBackgroundFailed": "Failed to copy the background.",
+    "importAssetsFailed": "Failed to import assets."
+  }
+}

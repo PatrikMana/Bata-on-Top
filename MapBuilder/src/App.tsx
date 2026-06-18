@@ -9,6 +9,9 @@ import {
   useRef,
   useState,
 } from 'react';
+import { useTranslation } from 'react-i18next';
+import { readJsonResponse, resolveErrorMessage, translateMessageKey } from './i18n/resolveErrorMessage';
+import { LanguageSwitcher } from './ui/LanguageSwitcher';
 
 const SECTION_WIDTH = 1280;
 const SECTION_HEIGHT = 720;
@@ -70,15 +73,16 @@ type CellPosition = {
   row: number;
 };
 
-async function readJsonResponse<T extends object>(response: Response) {
-  const data = (await response.json()) as T | { message?: string };
 
-  if (!response.ok) {
-    throw new Error('message' in data && data.message ? data.message : 'Operace se nepodarila.');
-  }
-
-  return data as T;
-}
+type SaveStatusKey =
+  | 'saved'
+  | 'saving'
+  | 'saveError'
+  | 'savingBackground'
+  | 'copyingBackground'
+  | 'importingAssets'
+  | 'importError'
+  | 'importedCount';
 
 async function fetchMaps() {
   const response = await fetch('/api/maps');
@@ -170,7 +174,7 @@ function readFileAsDataUrl(file: File) {
 
     reader.addEventListener('load', () => {
       if (typeof reader.result !== 'string') {
-        reject(new Error('Soubor se nepodarilo nacist.'));
+        reject(new Error(translateMessageKey('errors.fileReadFailed')));
         return;
       }
 
@@ -233,6 +237,7 @@ function getGridCellPercent(cellCount: number) {
 }
 
 function App() {
+  const { t } = useTranslation();
   const [screen, setScreen] = useState<Screen>('menu');
   const [maps, setMaps] = useState<BuilderMap[]>([]);
   const [mapName, setMapName] = useState('');
@@ -247,7 +252,8 @@ function App() {
   const [selectionStart, setSelectionStart] = useState<CellPosition | null>(null);
   const [isPointerDown, setIsPointerDown] = useState(false);
   const [isLoadingMaps, setIsLoadingMaps] = useState(false);
-  const [saveStatus, setSaveStatus] = useState('Ulozeno');
+  const [saveStatusKey, setSaveStatusKey] = useState<SaveStatusKey>('saved');
+  const [saveStatusParams, setSaveStatusParams] = useState<Record<string, unknown>>({});
   const [message, setMessage] = useState<string>();
   const [error, setError] = useState<string>();
   const canvasRef = useRef<HTMLDivElement | null>(null);
@@ -268,6 +274,11 @@ function App() {
   }, [selectedAsset, selectedTilePath]);
   const activeTool = isShiftSelecting ? 'select' : tool;
 
+  function updateSaveStatus(key: SaveStatusKey, params: Record<string, unknown> = {}) {
+    setSaveStatusKey(key);
+    setSaveStatusParams(params);
+  }
+
   async function loadMaps() {
     setIsLoadingMaps(true);
     setError(undefined);
@@ -275,7 +286,7 @@ function App() {
     try {
       setMaps(await fetchMaps());
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : 'Mapy se nepodarilo nacist.');
+      setError(resolveErrorMessage(loadError, 'errors.loadMapsFailed'));
     } finally {
       setIsLoadingMaps(false);
     }
@@ -332,7 +343,7 @@ function App() {
     const trimmedName = mapName.trim();
 
     if (trimmedName.length < 2) {
-      setError('Nazev mapy musi mit aspon 2 znaky.');
+      setError(t('errors.mapNameMinLength'));
       return;
     }
 
@@ -346,7 +357,7 @@ function App() {
       await loadMaps();
       setScreen('editor');
     } catch (createError) {
-      setError(createError instanceof Error ? createError.message : 'Mapu se nepodarilo vytvorit.');
+      setError(resolveErrorMessage(createError, 'errors.createMapFailed'));
     }
   }
 
@@ -357,7 +368,7 @@ function App() {
       setMessage(undefined);
       setError(undefined);
     } catch (editError) {
-      setError(editError instanceof Error ? editError.message : 'Mapu se nepodarilo otevrit.');
+      setError(resolveErrorMessage(editError, 'errors.openMapFailed'));
     }
   }
 
@@ -393,17 +404,17 @@ function App() {
     if (options.autosave !== false && nextSectionForSave) {
       const saveVersion = saveVersionRef.current + 1;
       saveVersionRef.current = saveVersion;
-      setSaveStatus('Ukladam...');
+      updateSaveStatus('saving');
       void saveSection(currentMapData.map.id, nextSectionForSave)
         .then(() => {
           if (saveVersionRef.current === saveVersion) {
-            setSaveStatus('Ulozeno');
+            updateSaveStatus('saved');
           }
         })
         .catch((saveError) => {
           if (saveVersionRef.current === saveVersion) {
-            setSaveStatus('Chyba ulozeni');
-            setError(saveError instanceof Error ? saveError.message : 'Sekce se nepodarilo ulozit.');
+            updateSaveStatus('saveError');
+            setError(resolveErrorMessage(saveError, 'errors.saveSectionFailed'));
           }
         });
     }
@@ -426,7 +437,7 @@ function App() {
 
   function paintCell(cell: CellPosition) {
     if (!selectedAssetId) {
-      setError('Nejdrive importuj nebo vyber asset skupinu.');
+      setError(t('errors.selectAssetGroupFirst'));
       return;
     }
 
@@ -684,7 +695,7 @@ function App() {
       setActiveSectionIndex(section.index);
       setSelectedCells(new Set());
     } catch (addError) {
-      setError(addError instanceof Error ? addError.message : 'Sekci se nepodarilo pridat.');
+      setError(resolveErrorMessage(addError, 'errors.addSectionFailed'));
     }
   }
 
@@ -694,7 +705,7 @@ function App() {
     }
 
     try {
-      setSaveStatus('Ukladam pozadi...');
+      updateSaveStatus('savingBackground');
       const dataUrl = await readFileAsDataUrl(event.target.files[0]);
       const savedSection = await uploadSectionBackground(mapData.map.id, activeSection.index, dataUrl);
 
@@ -704,10 +715,10 @@ function App() {
           section.index === savedSection.index ? savedSection : section,
         ),
       });
-      setSaveStatus('Ulozeno');
+      updateSaveStatus('saved');
     } catch (uploadError) {
-      setSaveStatus('Chyba ulozeni');
-      setError(uploadError instanceof Error ? uploadError.message : 'Pozadi se nepodarilo nahrat.');
+      updateSaveStatus('saveError');
+      setError(resolveErrorMessage(uploadError, 'errors.uploadBackgroundFailed'));
     } finally {
       event.target.value = '';
     }
@@ -719,7 +730,7 @@ function App() {
     }
 
     try {
-      setSaveStatus('Kopiruju pozadi...');
+      updateSaveStatus('copyingBackground');
       const savedSection = await copyPreviousBackground(mapData.map.id, activeSection.index);
 
       setMapData({
@@ -728,10 +739,10 @@ function App() {
           section.index === savedSection.index ? savedSection : section,
         ),
       });
-      setSaveStatus('Ulozeno');
+      updateSaveStatus('saved');
     } catch (copyError) {
-      setSaveStatus('Chyba ulozeni');
-      setError(copyError instanceof Error ? copyError.message : 'Pozadi se nepodarilo zkopirovat.');
+      updateSaveStatus('saveError');
+      setError(resolveErrorMessage(copyError, 'errors.copyBackgroundFailed'));
     }
   }
 
@@ -741,7 +752,7 @@ function App() {
     }
 
     try {
-      setSaveStatus('Importuju assety...');
+      updateSaveStatus('importingAssets');
       const files = await Promise.all(
         [...event.target.files]
           .filter((file) => file.type.startsWith('image/'))
@@ -758,10 +769,10 @@ function App() {
       });
       setSelectedAssetId((currentAssetId) => currentAssetId ?? result.assetGroups[0]?.id);
       setSelectedTilePath((currentTilePath) => currentTilePath ?? result.assetGroups[0]?.tiles[0]?.path);
-      setSaveStatus(`Importovano ${result.importedCount} souboru`);
+      updateSaveStatus('importedCount', { count: result.importedCount });
     } catch (importError) {
-      setSaveStatus('Chyba importu');
-      setError(importError instanceof Error ? importError.message : 'Assety se nepodarilo importovat.');
+      updateSaveStatus('importError');
+      setError(resolveErrorMessage(importError, 'errors.importAssetsFailed'));
     } finally {
       event.target.value = '';
     }
@@ -774,146 +785,172 @@ function App() {
 
   if (screen === 'create') {
     return (
-      <main className="screen">
-        <section className="pixel-panel form-panel">
-          <p className="brand-tag">Map builder</p>
-          <h1>Vytvorit mapu</h1>
-          <p className="screen-description">
-            Zadej nazev mapy. Builder vytvori slozku v `MapBuilder/maps` podle slug formatu.
-          </p>
+      <>
+        <LanguageSwitcher />
+        <main className="screen">
+          <section className="pixel-panel form-panel">
+            <p className="brand-tag">{t('common.mapBuilderTag')}</p>
+            <h1>{t('create.title')}</h1>
+            <p className="screen-description">{t('create.description')}</p>
 
-          <form className="builder-form" onSubmit={handleCreateMap}>
-            <label>
-              Nazev mapy
-              <input
-                value={mapName}
-                onChange={(event) => setMapName(event.target.value)}
-                placeholder="Bata Tower"
-              />
-            </label>
+            <form className="builder-form" onSubmit={handleCreateMap}>
+              <label>
+                {t('create.mapNameLabel')}
+                <input
+                  value={mapName}
+                  onChange={(event) => setMapName(event.target.value)}
+                  placeholder={t('create.mapNamePlaceholder')}
+                />
+              </label>
 
-            {error && <p className="error-message">{error}</p>}
-            {message && <p className="success-message">{message}</p>}
+              {error && <p className="error-message">{error}</p>}
+              {message && <p className="success-message">{message}</p>}
 
-            <button type="submit" className="pixel-button primary-button">
-              Vytvorit mapu
+              <button type="submit" className="pixel-button primary-button">
+                {t('create.submit')}
+              </button>
+            </form>
+
+            <button type="button" className="pixel-button ghost-button full-button" onClick={() => openScreen('menu')}>
+              {t('common.backToMenu')}
             </button>
-          </form>
-
-          <button type="button" className="pixel-button ghost-button full-button" onClick={() => openScreen('menu')}>
-            Zpet do menu
-          </button>
-        </section>
-      </main>
+          </section>
+        </main>
+      </>
     );
   }
 
   if (screen === 'edit') {
     return (
-      <main className="screen">
-        <section className="pixel-panel list-panel">
-          <p className="brand-tag">Map builder</p>
-          <h1>Upravit mapu</h1>
-          <p className="screen-description">Vyber mapu ze slozky `MapBuilder/maps`.</p>
+      <>
+        <LanguageSwitcher />
+        <main className="screen">
+          <section className="pixel-panel list-panel">
+            <p className="brand-tag">{t('common.mapBuilderTag')}</p>
+            <h1>{t('edit.title')}</h1>
+            <p className="screen-description">{t('edit.description')}</p>
 
-          {isLoadingMaps && <p className="muted-text">Nacitam mapy...</p>}
-          {error && <p className="error-message">{error}</p>}
+            {isLoadingMaps && <p className="muted-text">{t('edit.loadingMaps')}</p>}
+            {error && <p className="error-message">{error}</p>}
 
-          {!isLoadingMaps && maps.length === 0 ? (
-            <p className="muted-text">Zatim tu neni zadna mapa k uprave.</p>
-          ) : (
-            <div className="map-grid">
-              {maps.map((map) => (
-                <article key={map.id} className="map-card">
-                  <h2>{map.name}</h2>
-                  <p className="map-path">maps/{map.id}</p>
+            {!isLoadingMaps && maps.length === 0 ? (
+              <p className="muted-text">{t('edit.empty')}</p>
+            ) : (
+              <div className="map-grid">
+                {maps.map((map) => (
+                  <article key={map.id} className="map-card">
+                    <h2>{map.name}</h2>
+                    <p className="map-path">{t('edit.mapsPath', { mapId: map.id })}</p>
 
-                  <button type="button" className="pixel-button secondary-button" onClick={() => void handleEditMap(map)}>
-                    Upravit
-                  </button>
-                </article>
-              ))}
-            </div>
-          )}
+                    <button type="button" className="pixel-button secondary-button" onClick={() => void handleEditMap(map)}>
+                      {t('edit.editButton')}
+                    </button>
+                  </article>
+                ))}
+              </div>
+            )}
 
-          <button type="button" className="pixel-button ghost-button full-button" onClick={() => openScreen('menu')}>
-            Zpet do menu
-          </button>
-        </section>
-      </main>
+            <button type="button" className="pixel-button ghost-button full-button" onClick={() => openScreen('menu')}>
+              {t('common.backToMenu')}
+            </button>
+          </section>
+        </main>
+      </>
     );
+  }
+
+  function getObstacleTypeLabel(type: ObstacleType) {
+    if (type === 'slope') {
+      return t('editor.typeSlope');
+    }
+
+    if (type === 'ice') {
+      return t('editor.typeIce');
+    }
+
+    return t('editor.typeNormal');
   }
 
   if (screen === 'editor' && mapData && activeSection) {
     return (
-      <main className="editor-screen">
-        <header className="editor-topbar">
-          <div>
-            <p className="brand-tag compact-tag">Map builder</p>
-            <h1>{mapData.map.name}</h1>
-          </div>
+      <>
+        <LanguageSwitcher />
+        <main className="editor-screen">
+          <header className="editor-topbar">
+            <div>
+              <p className="brand-tag compact-tag">{t('common.mapBuilderTag')}</p>
+              <h1>{mapData.map.name}</h1>
+            </div>
 
-          <div className="topbar-actions">
-            <span className="save-status">{saveStatus}</span>
-            <button type="button" className="pixel-button ghost-button" onClick={() => openScreen('edit')}>
-              Mapy
-            </button>
-            <button type="button" className="pixel-button ghost-button" onClick={() => openScreen('menu')}>
-              Menu
-            </button>
-          </div>
-        </header>
-
-        <div className="builder-workbench">
-          <aside className="sections-sidebar">
-            <div className="sidebar-header">
-              <h2>Sekce</h2>
-              <button type="button" className="icon-button" onClick={() => void handleAddSection()}>
-                +
+            <div className="topbar-actions">
+              <span className="save-status">{t(`saveStatus.${saveStatusKey}`, saveStatusParams)}</span>
+              <button type="button" className="pixel-button ghost-button" onClick={() => openScreen('edit')}>
+                {t('editor.mapsButton')}
+              </button>
+              <button type="button" className="pixel-button ghost-button" onClick={() => openScreen('menu')}>
+                {t('editor.menuButton')}
               </button>
             </div>
+          </header>
 
-            <div className="section-list">
-              {mapData.sections.map((section) => (
-                <button
-                  key={section.index}
-                  type="button"
-                  className={`section-thumb ${section.index === activeSection.index ? 'active' : ''}`}
-                  onClick={() => {
-                    setActiveSectionIndex(section.index);
-                    setSelectedCells(new Set());
-                  }}
-                >
-                  <span>Sekce {section.index}</span>
-                  <span>{section.gridColumns} sl. x {section.gridRows} rad.</span>
-                </button>
-              ))}
-            </div>
-          </aside>
-
-          <section className="canvas-panel">
-            <div className="canvas-toolbar">
-              <div className="segmented-control">
-                <button
-                  type="button"
-                  className={activeTool === 'draw' ? 'active' : ''}
-                  onClick={() => setTool('draw')}
-                >
-                  Kreslit
-                </button>
-                <button
-                  type="button"
-                  className={activeTool === 'select' ? 'active' : ''}
-                  onClick={() => setTool('select')}
-                >
-                  Select
+          <div className="builder-workbench">
+            <aside className="sections-sidebar">
+              <div className="sidebar-header">
+                <h2>{t('editor.sectionsTitle')}</h2>
+                <button type="button" className="icon-button" onClick={() => void handleAddSection()}>
+                  +
                 </button>
               </div>
 
-              <span>
-                Vybrano: {selectedCells.size} {isShiftSelecting ? '/ Shift select' : ''}
-              </span>
-            </div>
+              <div className="section-list">
+                {mapData.sections.map((section) => (
+                  <button
+                    key={section.index}
+                    type="button"
+                    className={`section-thumb ${section.index === activeSection.index ? 'active' : ''}`}
+                    onClick={() => {
+                      setActiveSectionIndex(section.index);
+                      setSelectedCells(new Set());
+                    }}
+                  >
+                    <span>{t('editor.sectionLabel', { index: section.index })}</span>
+                    <span>
+                      {t('editor.sectionGrid', {
+                        columns: section.gridColumns,
+                        rows: section.gridRows,
+                      })}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </aside>
+
+            <section className="canvas-panel">
+              <div className="canvas-toolbar">
+                <div className="segmented-control">
+                  <button
+                    type="button"
+                    className={activeTool === 'draw' ? 'active' : ''}
+                    onClick={() => setTool('draw')}
+                  >
+                    {t('editor.drawTool')}
+                  </button>
+                  <button
+                    type="button"
+                    className={activeTool === 'select' ? 'active' : ''}
+                    onClick={() => setTool('select')}
+                  >
+                    {t('editor.selectTool')}
+                  </button>
+                </div>
+
+                <span>
+                  {t('editor.selectionCount', {
+                    count: selectedCells.size,
+                    shiftSuffix: isShiftSelecting ? t('editor.shiftSelectSuffix') : '',
+                  })}
+                </span>
+              </div>
 
             <div
               ref={canvasRef}
@@ -955,9 +992,9 @@ function App() {
 
           <aside className="tools-panel">
             <section className="tool-group">
-              <h2>Grid</h2>
+              <h2>{t('editor.gridTitle')}</h2>
               <label>
-                Sloupce: {activeSection.gridColumns}
+                {t('editor.columnsLabel', { count: activeSection.gridColumns })}
                 <input
                   type="range"
                   min={MIN_GRID_COLUMNS}
@@ -967,7 +1004,7 @@ function App() {
                 />
               </label>
               <label>
-                Radky: {activeSection.gridRows}
+                {t('editor.rowsLabel', { count: activeSection.gridRows })}
                 <input
                   type="range"
                   min={MIN_GRID_ROWS}
@@ -979,9 +1016,9 @@ function App() {
             </section>
 
             <section className="tool-group">
-              <h2>Pozadi</h2>
+              <h2>{t('editor.backgroundTitle')}</h2>
               <label className="file-button">
-                Nahrat bg.png
+                {t('editor.uploadBackground')}
                 <input type="file" accept="image/*" onChange={(event) => void handleBackgroundUpload(event)} />
               </label>
               <button
@@ -990,14 +1027,14 @@ function App() {
                 disabled={activeSection.index === 0}
                 onClick={() => void handleCopyPreviousBackground()}
               >
-                Stejne jako predchozi
+                {t('editor.copyPreviousBackground')}
               </button>
             </section>
 
             <section className="tool-group">
-              <h2>Bloky</h2>
+              <h2>{t('editor.blocksTitle')}</h2>
               <label className="file-button">
-                Import asset skupiny
+                {t('editor.importAssets')}
                 <input
                   type="file"
                   accept="image/*"
@@ -1008,7 +1045,7 @@ function App() {
               </label>
 
               {mapData.assetGroups.length === 0 ? (
-                <p className="muted-text small-text">Zatim nejsou importovane zadne assety.</p>
+                <p className="muted-text small-text">{t('editor.noAssets')}</p>
               ) : (
                 <div className="asset-list">
                   {mapData.assetGroups.map((assetGroup) => (
@@ -1050,7 +1087,7 @@ function App() {
             </section>
 
             <section className="tool-group">
-              <h2>Typ</h2>
+              <h2>{t('editor.typeTitle')}</h2>
               <div className="type-grid">
                 {(['normal', 'ice', 'slope'] as const).map((type) => (
                   <button
@@ -1059,22 +1096,22 @@ function App() {
                     className={`type-button ${selectedObstacleType === type ? 'active' : ''}`}
                     onClick={() => setObstacleType(type)}
                   >
-                    {type === 'slope' ? 'sikmy' : type}
+                    {getObstacleTypeLabel(type)}
                   </button>
                 ))}
               </div>
             </section>
 
             <section className="tool-group">
-              <h2>Posunout</h2>
+              <h2>{t('editor.moveTitle')}</h2>
               <div className="move-controls">
-                <button type="button" onClick={() => moveSelectedCells(0, -1)}>Nahoru</button>
-                <button type="button" onClick={() => moveSelectedCells(-1, 0)}>Vlevo</button>
-                <button type="button" onClick={() => moveSelectedCells(1, 0)}>Vpravo</button>
-                <button type="button" onClick={() => moveSelectedCells(0, 1)}>Dolu</button>
+                <button type="button" onClick={() => moveSelectedCells(0, -1)}>{t('editor.moveUp')}</button>
+                <button type="button" onClick={() => moveSelectedCells(-1, 0)}>{t('editor.moveLeft')}</button>
+                <button type="button" onClick={() => moveSelectedCells(1, 0)}>{t('editor.moveRight')}</button>
+                <button type="button" onClick={() => moveSelectedCells(0, 1)}>{t('editor.moveDown')}</button>
               </div>
               <button type="button" className="pixel-button ghost-button" onClick={deleteSelectedCells}>
-                Smazat vyber
+                {t('editor.deleteSelection')}
               </button>
             </section>
 
@@ -1082,29 +1119,31 @@ function App() {
           </aside>
         </div>
       </main>
+      </>
     );
   }
 
   return (
-    <main className="screen">
-      <section className="pixel-panel main-panel">
-        <p className="brand-tag">Bata / MDC</p>
-        <h1>Map builder</h1>
-        <p className="screen-description">
-          Samostatny nastroj pro vytvareni a upravu map pro Bata on Top.
-        </p>
+    <>
+      <LanguageSwitcher />
+      <main className="screen">
+        <section className="pixel-panel main-panel">
+          <p className="brand-tag">{t('common.brandTag')}</p>
+          <h1>{t('menu.title')}</h1>
+          <p className="screen-description">{t('menu.description')}</p>
 
-        <div className="menu-actions">
-          <button type="button" className="pixel-button primary-button" onClick={() => openScreen('create')}>
-            Vytvorit mapu
-          </button>
+          <div className="menu-actions">
+            <button type="button" className="pixel-button primary-button" onClick={() => openScreen('create')}>
+              {t('menu.createMap')}
+            </button>
 
-          <button type="button" className="pixel-button secondary-button" onClick={() => openScreen('edit')}>
-            Upravit mapu
-          </button>
-        </div>
-      </section>
-    </main>
+            <button type="button" className="pixel-button secondary-button" onClick={() => openScreen('edit')}>
+              {t('menu.editMap')}
+            </button>
+          </div>
+        </section>
+      </main>
+    </>
   );
 }
 
