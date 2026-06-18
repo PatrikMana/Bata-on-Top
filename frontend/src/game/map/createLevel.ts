@@ -16,11 +16,16 @@ const TILESET_ROWS = 3;
 const TILESET_COLUMNS = 3;
 const ADJACENCY_EPSILON = 2;
 const COLLIDER_ALPHA_THRESHOLD = 16;
+const alphaColliderVerticesCache = new Map<string, ColliderPoint[]>();
 
 type ColliderPoint = {
   x: number;
   y: number;
 };
+
+function cloneColliderPoints(points: ColliderPoint[]) {
+  return points.map((point) => ({ x: point.x, y: point.y }));
+}
 
 const ASSET_ALIASES: Record<string, string> = {
   'platform-normal': 'brick',
@@ -608,10 +613,20 @@ function getAlphaColliderVertices(
   textureKey: string,
   obstacle: ObstacleDefinition,
 ) {
+  const cacheKey = `${textureKey}:${obstacle.width}:${obstacle.height}`;
+  const cachedVertices = alphaColliderVerticesCache.get(cacheKey);
+
+  if (cachedVertices) {
+    return cloneColliderPoints(cachedVertices);
+  }
+
   const frame = scene.textures.getFrame(textureKey);
 
   if (!frame) {
-    return getFallbackSlopeColliderVertices(obstacle);
+    const fallbackVertices = getFallbackSlopeColliderVertices(obstacle);
+
+    alphaColliderVerticesCache.set(cacheKey, cloneColliderPoints(fallbackVertices));
+    return fallbackVertices;
   }
 
   const points: ColliderPoint[] = [];
@@ -640,7 +655,12 @@ function getAlphaColliderVertices(
 
   const hull = getConvexHull(points);
 
-  return hull.length >= 3 ? hull : getFallbackSlopeColliderVertices(obstacle);
+  const colliderVertices =
+    hull.length >= 3 ? hull : getFallbackSlopeColliderVertices(obstacle);
+
+  alphaColliderVerticesCache.set(cacheKey, cloneColliderPoints(colliderVertices));
+
+  return colliderVertices;
 }
 
 function getSlopeDirection(obstacle: ObstacleDefinition) {

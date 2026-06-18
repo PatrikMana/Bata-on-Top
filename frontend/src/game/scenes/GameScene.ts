@@ -12,6 +12,7 @@ export class GameScene extends Phaser.Scene {
   private mapData?: LoadedMapData;
   private player?: Player;
   private sectionTransitionInProgress = false;
+  private readonly sectionLoadPromises = new Map<number, Promise<boolean>>();
 
   constructor() {
     super('GameScene');
@@ -34,6 +35,7 @@ export class GameScene extends Phaser.Scene {
         PLAYER_CONFIG.spawnX,
         mapData.definition.sectionHeight - PLAYER_CONFIG.groundOffset - PLAYER_CONFIG.height / 2,
       );
+      void this.prefetchAdjacentSections();
 
       this.matter.world.on('collisionstart', this.handleCollisionActive, this);
       this.matter.world.on('collisionactive', this.handleCollisionActive, this);
@@ -119,18 +121,34 @@ export class GameScene extends Phaser.Scene {
     const sectionHeight = this.mapData.definition.sectionHeight;
     const halfPlayerHeight = PLAYER_CONFIG.height / 2;
     const playerY = this.player.gameObject.y;
+    const transitionSnapshot = {
+      x: this.player.gameObject.x,
+      velocity: this.player.getVelocity(),
+    };
 
     if (playerY < -halfPlayerHeight) {
-      void this.switchSectionIfAvailable(this.activeSectionIndex + 1, sectionHeight + playerY);
+      void this.switchSectionIfAvailable(
+        this.activeSectionIndex + 1,
+        sectionHeight + playerY,
+        transitionSnapshot,
+      );
       return;
     }
 
     if (playerY > sectionHeight + halfPlayerHeight && this.activeSectionIndex > 0) {
-      void this.switchSectionIfAvailable(this.activeSectionIndex - 1, playerY - sectionHeight);
+      void this.switchSectionIfAvailable(
+        this.activeSectionIndex - 1,
+        playerY - sectionHeight,
+        transitionSnapshot,
+      );
     }
   }
 
-  private async switchSectionIfAvailable(nextSectionIndex: number, nextPlayerY: number) {
+  private async switchSectionIfAvailable(
+    nextSectionIndex: number,
+    nextPlayerY: number,
+    snapshot: { x: number; velocity: { x: number; y: number } },
+  ) {
     if (!this.player || !this.mapData || !this.level) {
       return;
     }
@@ -148,20 +166,23 @@ export class GameScene extends Phaser.Scene {
         return;
       }
 
-      this.switchSection(nextSectionIndex, nextPlayerY);
+      this.switchSection(nextSectionIndex, nextPlayerY, snapshot);
     } finally {
       this.sectionTransitionInProgress = false;
     }
   }
 
-  private switchSection(nextSectionIndex: number, nextPlayerY: number) {
+  private switchSection(
+    nextSectionIndex: number,
+    nextPlayerY: number,
+    snapshot: { x: number; velocity: { x: number; y: number } },
+  ) {
     if (!this.player || !this.mapData || !this.level) {
       return;
     }
 
-    const velocity = this.player.getVelocity();
     const nextPlayerX = Phaser.Math.Clamp(
-      this.player.gameObject.x,
+      snapshot.x,
       PLAYER_CONFIG.width / 2,
       this.mapData.definition.sectionWidth - PLAYER_CONFIG.width / 2,
     );
@@ -169,7 +190,8 @@ export class GameScene extends Phaser.Scene {
     destroyLevel(this, this.level);
     this.activeSectionIndex = nextSectionIndex;
     this.level = createLevel(this, this.mapData, this.activeSectionIndex);
-    this.player.setPositionAndVelocity(nextPlayerX, nextPlayerY, velocity);
+    this.player.setPositionAndVelocity(nextPlayerX, nextPlayerY, snapshot.velocity);
+    void this.prefetchAdjacentSections();
   }
 
   private async ensureSectionLoaded(sectionIndex: number) {
@@ -179,6 +201,28 @@ export class GameScene extends Phaser.Scene {
 
     if (this.mapData.sections.some((section) => section.index === sectionIndex)) {
       return true;
+    }
+
+    const pendingLoad = this.sectionLoadPromises.get(sectionIndex);
+
+    if (pendingLoad) {
+      return pendingLoad;
+    }
+
+    const loadPromise = this.loadAndRegisterSection(sectionIndex);
+
+    this.sectionLoadPromises.set(sectionIndex, loadPromise);
+
+    try {
+      return await loadPromise;
+    } finally {
+      this.sectionLoadPromises.delete(sectionIndex);
+    }
+  }
+
+  private async loadAndRegisterSection(sectionIndex: number) {
+    if (!this.mapData) {
+      return false;
     }
 
     let nextSection: LoadedMapSection;
@@ -211,6 +255,17 @@ export class GameScene extends Phaser.Scene {
     await preloadMapAssets(this, this.mapData);
 
     return true;
+  }
+
+  private async prefetchAdjacentSections() {
+    const adjacentSections = [
+      this.activeSectionIndex + 1,
+      this.activeSectionIndex - 1,
+    ].filter((sectionIndex) => sectionIndex >= 0);
+
+    for (const sectionIndex of adjacentSections) {
+      await this.ensureSectionLoaded(sectionIndex);
+    }
   }
 
   private handleShutdown() {
