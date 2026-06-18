@@ -65,15 +65,15 @@ export class Player {
     this.keyD = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.D);
     this.jumpKey = scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
 
-    this.gameObject = scene.matter.add.image(x, y, ensurePlayerTexture(scene), undefined, {
-      label: 'player',
-      friction: 0.02,
-      frictionAir: 0.01,
-      frictionStatic: 0,
-    });
+    this.gameObject = scene.matter.add.image(x, y, ensurePlayerTexture(scene));
     this.gameObject
       .setDisplaySize(PLAYER_CONFIG.width, PLAYER_CONFIG.height)
-      .setRectangle(PLAYER_CONFIG.width, PLAYER_CONFIG.height)
+      .setRectangle(PLAYER_CONFIG.width, PLAYER_CONFIG.height, {
+        label: 'player',
+        friction: 0,
+        frictionAir: 0.01,
+        frictionStatic: 0,
+      })
       .setFixedRotation()
       .setVisible(false);
 
@@ -95,8 +95,12 @@ export class Player {
       this.facingDirection = moveDirection as -1 | 1;
     }
 
-    if (isGrounded && !isChargingJump) {
-      this.applyGroundMovement(moveDirection);
+    if (isGrounded) {
+      if (isChargingJump) {
+        this.applyPassiveGroundDeceleration();
+      } else {
+        this.applyGroundMovement(moveDirection);
+      }
     }
 
     if (isGrounded && isJumpDown) {
@@ -196,12 +200,38 @@ export class Player {
     return left ? -1 : 1;
   }
 
+  private applyPassiveGroundDeceleration() {
+    const velocity = this.getBody().velocity;
+
+    if (this.groundType === 'ice') {
+      let nextVelocityX = velocity.x * PLAYER_CONFIG.iceDeceleration;
+      if (Math.abs(nextVelocityX) < PLAYER_CONFIG.iceStopSpeed) {
+        nextVelocityX = 0;
+      }
+      this.gameObject.setVelocityX(nextVelocityX);
+      return;
+    }
+
+    this.gameObject.setVelocityX(velocity.x * PLAYER_CONFIG.normalGroundDeceleration);
+  }
+
   private applyGroundMovement(moveDirection: number) {
     const velocity = this.getBody().velocity;
 
     if (this.groundType === 'ice') {
-      const nextVelocityX = Phaser.Math.Clamp(
-        velocity.x + moveDirection * PLAYER_CONFIG.iceAcceleration,
+      let nextVelocityX = velocity.x;
+
+      if (moveDirection !== 0) {
+        nextVelocityX += moveDirection * PLAYER_CONFIG.iceAcceleration;
+      } else {
+        nextVelocityX *= PLAYER_CONFIG.iceDeceleration;
+        if (Math.abs(nextVelocityX) < PLAYER_CONFIG.iceStopSpeed) {
+          nextVelocityX = 0;
+        }
+      }
+
+      nextVelocityX = Phaser.Math.Clamp(
+        nextVelocityX,
         -PLAYER_CONFIG.iceMaxGroundSpeed,
         PLAYER_CONFIG.iceMaxGroundSpeed,
       );
