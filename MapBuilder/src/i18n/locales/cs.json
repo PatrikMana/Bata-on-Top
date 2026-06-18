@@ -23,7 +23,7 @@
     "title": "Vytvořit mapu",
     "description": "Zadej název mapy. Builder vytvoří složku v `MapBuilder/maps` podle slug formátu.",
     "mapNameLabel": "Název mapy",
-    "mapNamePlaceholder": "Baťova věž",
+    "mapNamePlaceholder": "Baťa Tower",
     "submit": "Vytvořit mapu"
   },
   "edit": {
