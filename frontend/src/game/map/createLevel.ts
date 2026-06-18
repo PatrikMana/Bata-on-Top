@@ -15,6 +15,12 @@ const GROUND_HEIGHT = 64;
 const TILESET_ROWS = 3;
 const TILESET_COLUMNS = 3;
 const ADJACENCY_EPSILON = 2;
+const COLLIDER_ALPHA_THRESHOLD = 16;
+
+type ColliderPoint = {
+  x: number;
+  y: number;
+};
 
 const ASSET_ALIASES: Record<string, string> = {
   'platform-normal': 'brick',
@@ -508,42 +514,141 @@ function createSingleTextureObstacle(
   } satisfies CreatedLevelObstacle;
 }
 
-function getSlopeColliderVertices(obstacle: ObstacleDefinition) {
-  const halfWidth = obstacle.width / 2;
-  const halfHeight = obstacle.height / 2;
+function getFallbackSlopeColliderVertices(obstacle: ObstacleDefinition) {
+  const width = obstacle.width;
+  const height = obstacle.height;
   const previewTilePath = obstacle.previewTilePath?.toLowerCase() ?? '';
   const isFlippedVertically = previewTilePath.includes('naopak');
   const leansLeft = previewTilePath.includes('levo');
 
   if (isFlippedVertically && leansLeft) {
     return [
-      { x: -halfWidth, y: -halfHeight },
-      { x: halfWidth, y: -halfHeight },
-      { x: -halfWidth, y: halfHeight },
+      { x: 0, y: 0 },
+      { x: width, y: 0 },
+      { x: 0, y: height },
     ];
   }
 
   if (isFlippedVertically) {
     return [
-      { x: -halfWidth, y: -halfHeight },
-      { x: halfWidth, y: -halfHeight },
-      { x: halfWidth, y: halfHeight },
+      { x: 0, y: 0 },
+      { x: width, y: 0 },
+      { x: width, y: height },
     ];
   }
 
   if (leansLeft) {
     return [
-      { x: -halfWidth, y: -halfHeight },
-      { x: halfWidth, y: halfHeight },
-      { x: -halfWidth, y: halfHeight },
+      { x: 0, y: 0 },
+      { x: width, y: height },
+      { x: 0, y: height },
     ];
   }
 
   return [
-    { x: halfWidth, y: -halfHeight },
-    { x: halfWidth, y: halfHeight },
-    { x: -halfWidth, y: halfHeight },
+    { x: width, y: 0 },
+    { x: width, y: height },
+    { x: 0, y: height },
   ];
+}
+
+function getCrossProduct(
+  origin: ColliderPoint,
+  a: ColliderPoint,
+  b: ColliderPoint,
+) {
+  return (a.x - origin.x) * (b.y - origin.y) - (a.y - origin.y) * (b.x - origin.x);
+}
+
+function getConvexHull(points: ColliderPoint[]) {
+  const uniquePoints = [...new Map(
+    points.map((point) => [`${point.x.toFixed(3)}:${point.y.toFixed(3)}`, point]),
+  ).values()].sort((a, b) => a.x - b.x || a.y - b.y);
+
+  if (uniquePoints.length <= 3) {
+    return uniquePoints;
+  }
+
+  const lower: ColliderPoint[] = [];
+
+  for (const point of uniquePoints) {
+    while (
+      lower.length >= 2 &&
+      getCrossProduct(lower[lower.length - 2], lower[lower.length - 1], point) <= 0
+    ) {
+      lower.pop();
+    }
+
+    lower.push(point);
+  }
+
+  const upper: ColliderPoint[] = [];
+
+  for (let index = uniquePoints.length - 1; index >= 0; index -= 1) {
+    const point = uniquePoints[index];
+
+    while (
+      upper.length >= 2 &&
+      getCrossProduct(upper[upper.length - 2], upper[upper.length - 1], point) <= 0
+    ) {
+      upper.pop();
+    }
+
+    upper.push(point);
+  }
+
+  lower.pop();
+  upper.pop();
+
+  return [...lower, ...upper];
+}
+
+function getAlphaColliderVertices(
+  scene: Phaser.Scene,
+  textureKey: string,
+  obstacle: ObstacleDefinition,
+) {
+  const frame = scene.textures.getFrame(textureKey);
+
+  if (!frame) {
+    return getFallbackSlopeColliderVertices(obstacle);
+  }
+
+  const points: ColliderPoint[] = [];
+  const textureWidth = Math.max(1, Math.floor(frame.cutWidth));
+  const textureHeight = Math.max(1, Math.floor(frame.cutHeight));
+
+  for (let y = 0; y < textureHeight; y += 1) {
+    for (let x = 0; x < textureWidth; x += 1) {
+      if (scene.textures.getPixelAlpha(x, y, textureKey) <= COLLIDER_ALPHA_THRESHOLD) {
+        continue;
+      }
+
+      const left = (x / textureWidth) * obstacle.width;
+      const right = ((x + 1) / textureWidth) * obstacle.width;
+      const top = (y / textureHeight) * obstacle.height;
+      const bottom = ((y + 1) / textureHeight) * obstacle.height;
+
+      points.push(
+        { x: left, y: top },
+        { x: right, y: top },
+        { x: right, y: bottom },
+        { x: left, y: bottom },
+      );
+    }
+  }
+
+  const hull = getConvexHull(points);
+
+  return hull.length >= 3 ? hull : getFallbackSlopeColliderVertices(obstacle);
+}
+
+function getSlopeDirection(obstacle: ObstacleDefinition) {
+  const previewTilePath = obstacle.previewTilePath?.toLowerCase() ?? '';
+  const isFlippedVertically = previewTilePath.includes('naopak');
+  const leansLeft = previewTilePath.includes('levo');
+
+  return leansLeft === isFlippedVertically ? 1 : -1;
 }
 
 function createSlopeObstacle(
@@ -556,16 +661,19 @@ function createSlopeObstacle(
 ) {
   const isHookable = HOOKABLE_OBSTACLE_TYPES.has(obstacle.type);
   const rotationRad = Phaser.Math.DegToRad(obstacle.rotation);
-  const body = scene.matter.add.fromVertices(
+  const matterBody = scene.matter.add.fromVertices(
     worldX,
     worldY,
-    [getSlopeColliderVertices(obstacle)],
+    [getAlphaColliderVertices(scene, textureKey, obstacle)],
     {
       isStatic: true,
       friction: 0,
       frictionStatic: 0,
       label: `obstacle:${obstacle.type}:${obstacle.id}`,
     },
+    true,
+    0.01,
+    10,
   ) as MatterJS.BodyType;
   const image = scene.add
     .image(worldX, worldY, textureKey)
@@ -573,11 +681,18 @@ function createSlopeObstacle(
     .setRotation(rotationRad)
     .setDepth(5);
 
+  image.setData('matterBody', matterBody);
+  image.setData('slopeDirection', getSlopeDirection(obstacle));
+  matterBody.plugin = {
+    ...matterBody.plugin,
+    slopeDirection: getSlopeDirection(obstacle),
+  };
+  matterBody.label = `obstacle:${obstacle.type}:${obstacle.id}`;
+
   if (rotationRad !== 0) {
-    scene.matter.body.rotate(body, rotationRad);
+    scene.matter.body.rotate(matterBody, rotationRad);
   }
 
-  image.setData('matterBody', body);
   markObstacleObject(image, obstacle, isHookable);
 
   return {

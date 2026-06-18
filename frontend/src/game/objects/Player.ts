@@ -132,6 +132,11 @@ export class Player {
   recordObstacleContact(obstacleType: ObstacleType, obstacleBody: MatterJS.BodyType) {
     this.applyWallBounce(obstacleBody);
 
+    if (obstacleType === 'slope') {
+      this.applySlopeSlide(obstacleBody);
+      return;
+    }
+
     if (obstacleType !== 'normal' && obstacleType !== 'ice') {
       return;
     }
@@ -211,6 +216,25 @@ export class Player {
     }
 
     this.gameObject.setVelocityX(moveDirection * PLAYER_CONFIG.maxGroundSpeed);
+  }
+
+  private applySlopeSlide(obstacleBody: MatterJS.BodyType) {
+    const body = this.getBody();
+    const slopeDirection =
+      typeof obstacleBody.plugin?.slopeDirection === 'number'
+        ? Math.sign(obstacleBody.plugin.slopeDirection)
+        : Math.sign(body.position.x - obstacleBody.position.x) || 1;
+    const nextVelocityX = Phaser.Math.Clamp(
+      body.velocity.x + slopeDirection * PLAYER_CONFIG.slopeSlideAcceleration,
+      -PLAYER_CONFIG.slopeMaxSlideSpeed,
+      PLAYER_CONFIG.slopeMaxSlideSpeed,
+    );
+    const nextVelocityY = Math.max(body.velocity.y, PLAYER_CONFIG.slopeSlideAcceleration);
+
+    this.groundType = null;
+    this.lastGroundedAtMs = 0;
+    this.gameObject.setVelocity(nextVelocityX, nextVelocityY);
+    this.lastAirVelocity = { x: nextVelocityX, y: nextVelocityY };
   }
 
   private jump(moveDirection: number) {
