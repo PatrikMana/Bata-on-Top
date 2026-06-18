@@ -1,4 +1,5 @@
 import type { FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 
 type NicknameModalProps = {
   value: string;
@@ -15,6 +16,8 @@ export function NicknameModal({
   onSubmit,
   onCancel,
 }: NicknameModalProps) {
+  const { t } = useTranslation();
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     onSubmit();
@@ -23,21 +26,19 @@ export function NicknameModal({
   return (
     <div className="modal-backdrop" role="presentation">
       <section className="panel pixel-panel nickname-modal" role="dialog" aria-modal="true">
-        <h1>Nickname</h1>
+        <h1>{t('nickname.title')}</h1>
 
-        <p className="screen-description">
-          Než začneš hrát mapu, zadej jméno pro HUD a leaderboard.
-        </p>
+        <p className="screen-description">{t('nickname.description')}</p>
 
         <form className="nickname-form" onSubmit={handleSubmit}>
-          <label htmlFor="player-name">Jméno hráče</label>
+          <label htmlFor="player-name">{t('nickname.playerNameLabel')}</label>
 
           <input
             id="player-name"
             autoFocus
             maxLength={24}
             value={value}
-            placeholder="Hráč"
+            placeholder={t('nickname.placeholder')}
             onChange={(event) => onChange(event.target.value)}
           />
 
@@ -45,11 +46,11 @@ export function NicknameModal({
 
           <div className="button-row">
             <button type="submit" className="pixel-button primary-button">
-              Uložit
+              {t('nickname.save')}
             </button>
 
             <button type="button" className="pixel-button ghost-button" onClick={onCancel}>
-              Zpět
+              {t('common.back')}
             </button>
           </div>
         </form>

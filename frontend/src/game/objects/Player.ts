@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import i18n from '../../i18n/i18n';
 import { PLAYER_CONFIG } from '../gameplayConfig';
 import type { ObstacleType } from '../map/mapTypes';
 import {
@@ -56,7 +57,7 @@ export class Player {
     y: number,
   ) {
     if (!scene.input.keyboard) {
-      throw new Error('Keyboard input není dostupný.');
+      throw new Error(i18n.t('errors.keyboardUnavailable'));
     }
 
     this.scene = scene;

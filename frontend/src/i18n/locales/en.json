@@ -1,0 +1,65 @@
+{
+  "common": {
+    "back": "Back",
+    "backToMenu": "Back to menu",
+    "leaderboard": "Leaderboard",
+    "brandTag": "Baťa / MDC"
+  },
+  "meta": {
+    "title": "Baťa on Top | Climb to the top",
+    "description": "Climb Pjot to the top of the Baťa tower, find his golden heels, and fight for a spot on the leaderboard."
+  },
+  "start": {
+    "title": "Baťa on Top",
+    "description": "Climb the tower as Pjot and find his golden heels.",
+    "play": "Play"
+  },
+  "mapSelect": {
+    "title": "Choose a map",
+    "description": "Pick the tower you want to climb.",
+    "selectMap": "Select map"
+  },
+  "maps": {
+    "bata-tower": "Baťa Tower"
+  },
+  "finish": {
+    "eyebrow": "Goal reached",
+    "title": "You found the golden heels!",
+    "playAgain": "Play again"
+  },
+  "leaderboard": {
+    "title": "Leaderboard",
+    "description": "Fastest climbs to the top.",
+    "loading": "Loading leaderboard...",
+    "empty": "No results yet.",
+    "refresh": "Refresh"
+  },
+  "nickname": {
+    "title": "Nickname",
+    "description": "Before you play, enter a name for the HUD and leaderboard.",
+    "playerNameLabel": "Player name",
+    "placeholder": "Player",
+    "save": "Save"
+  },
+  "pause": {
+    "title": "Paused",
+    "resume": "Resume",
+    "restartRun": "Restart run"
+  },
+  "language": {
+    "cs": "CS",
+    "en": "EN",
+    "switchLabel": "Language"
+  },
+  "errors": {
+    "nicknameMinLength": "Nickname must be at least 2 characters.",
+    "leaderboardLoadFailed": "Failed to load leaderboard.",
+    "mapLoadFailed": "Failed to load map.",
+    "keyboardUnavailable": "Keyboard input is not available.",
+    "obstaclesInvalidJson": "Obstacle data is not valid JSON: {{url}}",
+    "obstaclesLoadFailed": "Failed to load obstacle data: {{url}}",
+    "obstaclesMissing": "Section {{sectionIndex}} in map {{mapId}} has no obstacles.json in a supported path.",
+    "leaderboardRequestFailed": "Leaderboard request failed with status {{status}}.",
+    "apiRequestFailed": "API request failed with status {{status}}."
+  }
+}

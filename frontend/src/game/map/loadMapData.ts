@@ -1,4 +1,5 @@
 import type { AvailableMap } from './availableMaps';
+import i18n from '../../i18n/i18n';
 import type { LoadedMapData, LoadedMapSection, ObstaclesFile } from './mapTypes';
 
 const MAPS_BASE_PATH = '/maps';
@@ -54,19 +55,19 @@ async function fetchObstaclesJson(mapId: string, sectionIndex: number) {
       try {
         data = JSON.parse(trimmedData) as ObstaclesFile;
       } catch {
-        throw new Error(`Obstacle data nejsou validní JSON: ${url}`);
+        throw new Error(i18n.t('errors.obstaclesInvalidJson', { url }));
       }
 
       return { data, url };
     }
 
     if (response.status !== 404) {
-      throw new Error(`Nepodařilo se načíst obstacle data: ${url}`);
+      throw new Error(i18n.t('errors.obstaclesLoadFailed', { url }));
     }
   }
 
   throw new Error(
-    `Sekce ${sectionIndex} v mapě ${mapId} nemá obstacles.json v žádné podporované cestě.`,
+    i18n.t('errors.obstaclesMissing', { sectionIndex, mapId }),
   );
 }
 
