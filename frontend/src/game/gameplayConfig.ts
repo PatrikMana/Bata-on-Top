@@ -18,7 +18,6 @@ export const PLAYER_CONFIG = {
   wallBounceCooldownMs: 120,
   wallInputBounceCooldownMs: 45,
   wallBounceMaxHorizontalOverlap: 30,
-  wallBounceSidewaysBias: 0.75,
   ceilingBounceIgnoreTolerance: 10,
   wallBumpSpeed: 1.35,
   wallBounceSeparationPx: 2,
