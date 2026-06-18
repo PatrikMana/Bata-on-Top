@@ -1,3 +1,5 @@
+import { getHttpErrorMessage } from '../i18n/resolveErrorMessage';
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000/api';
 const MAP_VERSION = import.meta.env.VITE_MAP_VERSION ?? 'dev-1';
 
@@ -31,12 +33,9 @@ export async function getLeaderboard(
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
-    const message =
-      data?.message ??
-      data?.error ??
-      `Leaderboard request failed with status ${response.status}`;
-
-    throw new Error(message);
+    throw new Error(
+      getHttpErrorMessage(response, data, 'errors.leaderboardRequestFailed'),
+    );
   }
 
   return data as LeaderboardItem[];

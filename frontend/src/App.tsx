@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { getLeaderboard, type LeaderboardItem } from './api/leaderboardApi';
 import { PhaserGame } from './game/PhaserGame';
 import { AVAILABLE_MAPS, type AvailableMap } from './game/map/availableMaps';
@@ -7,12 +8,15 @@ import { GameHud } from './ui/GameHud';
 import { Leaderboard } from './ui/Leaderboard';
 import { NicknameModal } from './ui/NicknameModal';
 import { PauseMenuModal } from './ui/PauseMenuModal';
+import { LanguageSwitcher } from './ui/LanguageSwitcher';
+import { resolveErrorMessage } from './i18n/resolveErrorMessage';
 import { StartScreen } from './ui/StartScreen';
 
 type AppScreen = 'start' | 'map-select' | 'playing' | 'finish' | 'leaderboard';
 const PLAYER_NAME_STORAGE_KEY = 'bata-on-top-player-name';
 
 function App() {
+  const { t } = useTranslation();
   const [screen, setScreen] = useState<AppScreen>('start');
 
   const [playerName, setPlayerName] = useState(() => {
@@ -104,7 +108,7 @@ function App() {
     const trimmedName = nicknameDraft.trim();
 
     if (trimmedName.length < 2) {
-      setNicknameError('Nickname musí mít aspoň 2 znaky.');
+      setNicknameError(t('errors.nicknameMinLength'));
       return;
     }
 
@@ -147,9 +151,7 @@ function App() {
       const items = await getLeaderboard();
       setLeaderboardItems(items);
     } catch (error) {
-      setLeaderboardError(
-        error instanceof Error ? error.message : 'Nepodařilo se načíst leaderboard.',
-      );
+      setLeaderboardError(resolveErrorMessage(error, 'errors.leaderboardLoadFailed'));
     } finally {
       setIsLeaderboardLoading(false);
     }
@@ -169,8 +171,10 @@ function App() {
     setScreen('start');
   }
 
+  let screenContent: ReactNode;
+
   if (screen === 'start') {
-    return (
+    screenContent = (
       <StartScreen
         mode="menu"
         maps={AVAILABLE_MAPS}
@@ -178,10 +182,8 @@ function App() {
         onShowLeaderboard={handleShowLeaderboard}
       />
     );
-  }
-
-  if (screen === 'map-select') {
-    return (
+  } else if (screen === 'map-select') {
+    screenContent = (
       <>
         <StartScreen
           mode="map-select"
@@ -201,10 +203,8 @@ function App() {
         )}
       </>
     );
-  }
-
-  if (screen === 'playing') {
-    return (
+  } else if (screen === 'playing') {
+    screenContent = (
       <main className="game-placeholder" data-paused={isRunPaused}>
         <GameHud elapsedMs={elapsedMs} playerName={playerName} />
 
@@ -225,10 +225,8 @@ function App() {
         )}
       </main>
     );
-  }
-
-  if (screen === 'finish') {
-    return (
+  } else if (screen === 'finish') {
+    screenContent = (
       <FinishScreen
         playerName={playerName}
         timeMs={finalTimeMs}
@@ -236,16 +234,25 @@ function App() {
         onShowLeaderboard={handleShowLeaderboard}
       />
     );
+  } else {
+    screenContent = (
+      <Leaderboard
+        items={leaderboardItems}
+        isLoading={isLeaderboardLoading}
+        errorMessage={leaderboardError}
+        onRefresh={loadLeaderboard}
+        onBack={handleRestart}
+      />
+    );
   }
 
+  const showLanguageSwitcher = screen !== 'playing' || isRunPaused;
+
   return (
-    <Leaderboard
-      items={leaderboardItems}
-      isLoading={isLeaderboardLoading}
-      errorMessage={leaderboardError}
-      onRefresh={loadLeaderboard}
-      onBack={handleRestart}
-    />
+    <>
+      {showLanguageSwitcher && <LanguageSwitcher />}
+      {screenContent}
+    </>
   );
 }
 

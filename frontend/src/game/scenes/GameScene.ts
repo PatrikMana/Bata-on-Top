@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import i18n from '../../i18n/i18n';
 import { PLAYER_CONFIG } from '../gameplayConfig';
 import { AVAILABLE_MAPS } from '../map/availableMaps';
 import { createLevel, destroyLevel, preloadMapAssets } from '../map/createLevel';
@@ -40,9 +41,8 @@ export class GameScene extends Phaser.Scene {
       this.matter.world.on('collisionstart', this.handleCollisionActive, this);
       this.matter.world.on('collisionactive', this.handleCollisionActive, this);
       this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.handleShutdown, this);
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Nepodařilo se načíst mapu.';
+    } catch {
+      const message = i18n.t('errors.mapLoadFailed');
 
       this.add
         .text(40, 40, message, {

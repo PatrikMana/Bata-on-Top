@@ -1,0 +1,65 @@
+{
+  "common": {
+    "back": "Zpět",
+    "backToMenu": "Zpět do menu",
+    "leaderboard": "Žebříček",
+    "brandTag": "Baťa / MDC"
+  },
+  "meta": {
+    "title": "Baťa on Top | Až na vrchol",
+    "description": "Vyšvihni Pjota až na vrchol Baťovy věže, najdi jeho zlaté střevíce a bojuj o místo v žebříčku."
+  },
+  "start": {
+    "title": "Baťa on Top",
+    "description": "Vyšvihni Pjota až na vrchol věže a najdi jeho zlaté střevíce.",
+    "play": "Hrát"
+  },
+  "mapSelect": {
+    "title": "Vyber mapu",
+    "description": "Zvol věž, na kterou se chceš vyšplhat.",
+    "selectMap": "Vybrat mapu"
+  },
+  "maps": {
+    "bata-tower": "Baťova věž"
+  },
+  "finish": {
+    "eyebrow": "Cíl dosažen",
+    "title": "Našel jsi zlaté střevíce!",
+    "playAgain": "Hrát znovu"
+  },
+  "leaderboard": {
+    "title": "Žebříček",
+    "description": "Nejrychlejší výstupy na vrchol.",
+    "loading": "Načítám žebříček...",
+    "empty": "Zatím tu nejsou žádné výsledky.",
+    "refresh": "Obnovit"
+  },
+  "nickname": {
+    "title": "Přezdívka",
+    "description": "Než začneš hrát mapu, zadej jméno pro HUD a žebříček.",
+    "playerNameLabel": "Jméno hráče",
+    "placeholder": "Hráč",
+    "save": "Uložit"
+  },
+  "pause": {
+    "title": "Pauza",
+    "resume": "Pokračovat",
+    "restartRun": "Restartovat run"
+  },
+  "language": {
+    "cs": "CS",
+    "en": "EN",
+    "switchLabel": "Jazyk"
+  },
+  "errors": {
+    "nicknameMinLength": "Přezdívka musí mít alespoň 2 znaky.",
+    "leaderboardLoadFailed": "Nepodařilo se načíst žebříček.",
+    "mapLoadFailed": "Nepodařilo se načíst mapu.",
+    "keyboardUnavailable": "Klávesnice není k dispozici.",
+    "obstaclesInvalidJson": "Data překážek nejsou platný JSON: {{url}}",
+    "obstaclesLoadFailed": "Nepodařilo se načíst data překážek: {{url}}",
+    "obstaclesMissing": "Sekce {{sectionIndex}} v mapě {{mapId}} nemá obstacles.json v podporované cestě.",
+    "leaderboardRequestFailed": "Požadavek na žebříček selhal se stavem {{status}}.",
+    "apiRequestFailed": "API požadavek selhal se stavem {{status}}."
+  }
+}

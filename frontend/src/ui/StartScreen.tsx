@@ -1,4 +1,5 @@
 import type { FormEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { AvailableMap } from '../game/map/availableMaps';
 
 type StartScreenProps = {
@@ -25,6 +26,8 @@ export function StartScreen({
   onShowLeaderboard,
   onStart,
 }: StartScreenProps) {
+  const { t } = useTranslation();
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     onStart?.();
@@ -34,9 +37,9 @@ export function StartScreen({
     return (
       <section className="screen menu-screen">
         <div className="panel pixel-panel map-panel">
-          <h1>Vyber mapu</h1>
+          <h1>{t('mapSelect.title')}</h1>
 
-          <p className="screen-description">Zvol věž, na kterou se chceš vyšplhat.</p>
+          <p className="screen-description">{t('mapSelect.description')}</p>
 
           <div className="map-grid">
             {maps.map((map) => (
@@ -45,21 +48,21 @@ export function StartScreen({
                   *
                 </span>
 
-                <h2>{map.name}</h2>
+                <h2>{t(`maps.${map.id}`, { defaultValue: map.name })}</h2>
 
                 <button
                   type="button"
                   className="pixel-button primary-button"
                   onClick={() => onSelectMap?.(map)}
                 >
-                  Vybrat mapu
+                  {t('mapSelect.selectMap')}
                 </button>
               </article>
             ))}
           </div>
 
           <button type="button" className="pixel-button ghost-button full-button" onClick={onBack}>
-            Zpět do menu
+            {t('common.backToMenu')}
           </button>
         </div>
       </section>
@@ -69,21 +72,19 @@ export function StartScreen({
   return (
     <section className="screen menu-screen">
       <div className="panel pixel-panel main-panel">
-        <p className="brand-tag">Baťa / MDC</p>
+        <p className="brand-tag">{t('common.brandTag')}</p>
 
-        <h1>Baťa on Top</h1>
+        <h1>{t('start.title')}</h1>
 
-        <p className="screen-description">
-          Vyšvihni Pjota až na vrchol věže a najdi jeho zlaté střevíce.
-        </p>
+        <p className="screen-description">{t('start.description')}</p>
 
         <form onSubmit={handleSubmit} className="start-form">
           <button type="submit" className="pixel-button primary-button">
-            Hrát
+            {t('start.play')}
           </button>
 
           <button type="button" className="pixel-button secondary-button" onClick={onShowLeaderboard}>
-            Leaderboard
+            {t('common.leaderboard')}
           </button>
         </form>
       </div>
