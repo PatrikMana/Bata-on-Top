@@ -308,13 +308,30 @@ export class Player {
       Math.max(playerBody.bounds.min.y, obstacleBody.bounds.min.y);
     const isStandingOnObstacle =
       playerBody.bounds.max.y <= obstacleBody.bounds.min.y + 18 && velocity.y >= -0.5;
+    const isBelowObstacleBottom =
+      playerBody.position.y >= obstacleBody.bounds.max.y - PLAYER_CONFIG.ceilingBounceIgnoreTolerance;
+    const isTouchingCeiling =
+      playerBody.position.y > obstacleBody.position.y &&
+      playerBody.bounds.min.y >= obstacleBody.bounds.max.y - PLAYER_CONFIG.ceilingBounceIgnoreTolerance &&
+      overlapY <= overlapX + PLAYER_CONFIG.ceilingBounceIgnoreTolerance &&
+      (velocity.y <= 0.5 || this.lastAirVelocity.y < -0.5);
 
-    if (isStandingOnObstacle || overlapX <= 0 || overlapY <= 0) {
+    if (
+      isStandingOnObstacle ||
+      isBelowObstacleBottom ||
+      isTouchingCeiling ||
+      overlapX <= 0 ||
+      overlapY <= 0
+    ) {
       return;
     }
 
+    const isMovingMostlySideways =
+      Math.abs(velocity.x) >= Math.abs(velocity.y) * PLAYER_CONFIG.wallBounceSidewaysBias;
     const isSideCollision =
-      overlapX <= PLAYER_CONFIG.wallBounceMaxHorizontalOverlap || overlapX < overlapY;
+      isMovingMostlySideways &&
+      overlapY > PLAYER_CONFIG.ceilingBounceIgnoreTolerance &&
+      (overlapX <= PLAYER_CONFIG.wallBounceMaxHorizontalOverlap || overlapX < overlapY);
 
     if (!isSideCollision) {
       return;
