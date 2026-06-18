@@ -2,16 +2,16 @@
   "common": {
     "back": "Zpět",
     "backToMenu": "Zpět do menu",
-    "leaderboard": "Žebříček",
+    "leaderboard": "Leaderboard",
     "brandTag": "Baťa / MDC"
   },
   "meta": {
     "title": "Baťa on Top | Až na vrchol",
-    "description": "Vyšvihni Pjota až na vrchol Baťovy věže, najdi jeho zlaté střevíce a bojuj o místo v žebříčku."
+    "description": "Vyšvihni Pjot až na vrchol Baťovy věže, najdi jeho zlaté střevíce a bojuj o místo na leaderboardu."
   },
   "start": {
     "title": "Baťa on Top",
-    "description": "Vyšvihni Pjota až na vrchol věže a najdi jeho zlaté střevíce.",
+    "description": "Vyšvihni Pjot až na vrchol věže a najdi jeho zlaté střevíce.",
     "play": "Hrát"
   },
   "mapSelect": {
@@ -20,7 +20,7 @@
     "selectMap": "Vybrat mapu"
   },
   "maps": {
-    "bata-tower": "Baťova věž"
+    "bata-tower": "Baťa Tower"
   },
   "finish": {
     "eyebrow": "Cíl dosažen",
@@ -28,15 +28,15 @@
     "playAgain": "Hrát znovu"
   },
   "leaderboard": {
-    "title": "Žebříček",
+    "title": "Leaderboard",
     "description": "Nejrychlejší výstupy na vrchol.",
-    "loading": "Načítám žebříček...",
+    "loading": "Načítám leaderboard...",
     "empty": "Zatím tu nejsou žádné výsledky.",
     "refresh": "Obnovit"
   },
   "nickname": {
     "title": "Přezdívka",
-    "description": "Než začneš hrát mapu, zadej jméno pro HUD a žebříček.",
+    "description": "Než začneš hrát mapu, zadej jméno pro HUD a leaderboard.",
     "playerNameLabel": "Jméno hráče",
     "placeholder": "Hráč",
     "save": "Uložit"
@@ -53,13 +53,13 @@
   },
   "errors": {
     "nicknameMinLength": "Přezdívka musí mít alespoň 2 znaky.",
-    "leaderboardLoadFailed": "Nepodařilo se načíst žebříček.",
+    "leaderboardLoadFailed": "Nepodařilo se načíst leaderboard.",
     "mapLoadFailed": "Nepodařilo se načíst mapu.",
     "keyboardUnavailable": "Klávesnice není k dispozici.",
     "obstaclesInvalidJson": "Data překážek nejsou platný JSON: {{url}}",
     "obstaclesLoadFailed": "Nepodařilo se načíst data překážek: {{url}}",
     "obstaclesMissing": "Sekce {{sectionIndex}} v mapě {{mapId}} nemá obstacles.json v podporované cestě.",
-    "leaderboardRequestFailed": "Požadavek na žebříček selhal se stavem {{status}}.",
+    "leaderboardRequestFailed": "Požadavek na leaderboard selhal se stavem {{status}}.",
     "apiRequestFailed": "API požadavek selhal se stavem {{status}}."
   }
 }
