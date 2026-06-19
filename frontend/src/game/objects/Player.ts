@@ -12,6 +12,10 @@ import {
 type GroundType = Extract<ObstacleType, 'normal' | 'ice'>;
 
 const PLAYER_FALLBACK_TEXTURE_KEY = 'player:fallback';
+const SLOPE_STEP_EDGE_INSET = 4;
+const SLOPE_STEP_FOOT_OFFSET_RATIO = 0.35;
+const SLOPE_STEP_MAX_UP = 22;
+const SLOPE_STEP_VERTICAL_TOLERANCE = 20;
 
 function ensurePlayerTexture(scene: Phaser.Scene) {
   if (scene.textures.exists(PLAYER_FALLBACK_TEXTURE_KEY)) {
@@ -135,9 +139,11 @@ export class Player {
   }
 
   recordObstacleContact(obstacleType: ObstacleType, obstacleBody: MatterJS.BodyType) {
-    this.applyWallBounce(obstacleBody);
-
     if (obstacleType === 'slope') {
+      if (obstacleBody.plugin?.standableSlope) {
+        this.tryStepOntoStandableSlope(obstacleBody);
+      }
+
       const playerBody = this.getBody();
       const isPlayerCenterOverSlope =
         playerBody.position.x >= obstacleBody.bounds.min.x &&
@@ -150,6 +156,8 @@ export class Player {
       }
       return;
     }
+
+    this.applyWallBounce(obstacleBody);
 
     if (obstacleType !== 'normal' && obstacleType !== 'ice') {
       return;
@@ -167,6 +175,87 @@ export class Player {
 
     this.groundType = obstacleType;
     this.lastGroundedAtMs = this.scene.time.now;
+  }
+
+  private tryStepOntoStandableSlope(obstacleBody: MatterJS.BodyType) {
+    const playerBody = this.getBody();
+    const moveDirection = this.getMoveDirection();
+
+    if (moveDirection === 0 || playerBody.velocity.y < -0.5) {
+      return;
+    }
+
+    const isApproachingFromLeft =
+      moveDirection > 0 && playerBody.position.x < obstacleBody.bounds.min.x;
+    const isApproachingFromRight =
+      moveDirection < 0 && playerBody.position.x > obstacleBody.bounds.max.x;
+
+    if (!isApproachingFromLeft && !isApproachingFromRight) {
+      return;
+    }
+
+    const isFootNearSlope =
+      playerBody.bounds.max.y >= obstacleBody.bounds.min.y - SLOPE_STEP_VERTICAL_TOLERANCE &&
+      playerBody.bounds.max.y <= obstacleBody.bounds.max.y + SLOPE_STEP_VERTICAL_TOLERANCE;
+
+    if (!isFootNearSlope) {
+      return;
+    }
+
+    const edgeX = moveDirection > 0
+      ? obstacleBody.bounds.min.x + SLOPE_STEP_EDGE_INSET
+      : obstacleBody.bounds.max.x - SLOPE_STEP_EDGE_INSET;
+    const slopeSurfaceY = this.getSlopeSurfaceY(obstacleBody, edgeX);
+
+    if (slopeSurfaceY === null) {
+      return;
+    }
+
+    const targetY = slopeSurfaceY - PLAYER_CONFIG.height / 2;
+    const stepUp = playerBody.position.y - targetY;
+
+    if (stepUp < 0 || stepUp > SLOPE_STEP_MAX_UP) {
+      return;
+    }
+
+    const targetX =
+      edgeX - moveDirection * PLAYER_CONFIG.width * SLOPE_STEP_FOOT_OFFSET_RATIO;
+
+    this.gameObject.setPosition(targetX, targetY);
+    this.gameObject.setVelocity(playerBody.velocity.x, Math.min(playerBody.velocity.y, 0));
+    this.syncVisualToBody();
+  }
+
+  private getSlopeSurfaceY(obstacleBody: MatterJS.BodyType, worldX: number) {
+    const vertices = obstacleBody.vertices ?? [];
+    const slopedEdges = vertices
+      .map((vertex, index) => {
+        const nextVertex = vertices[(index + 1) % vertices.length];
+        const deltaX = nextVertex.x - vertex.x;
+        const deltaY = nextVertex.y - vertex.y;
+
+        return {
+          start: vertex,
+          end: nextVertex,
+          deltaX,
+          deltaY,
+        };
+      })
+      .filter((edge) => Math.abs(edge.deltaX) > 1 && Math.abs(edge.deltaY) > 1)
+      .sort((a, b) => Math.abs(b.deltaX) - Math.abs(a.deltaX));
+
+    const slopeEdge = slopedEdges[0];
+
+    if (!slopeEdge) {
+      return null;
+    }
+
+    const minX = Math.min(slopeEdge.start.x, slopeEdge.end.x);
+    const maxX = Math.max(slopeEdge.start.x, slopeEdge.end.x);
+    const clampedX = Phaser.Math.Clamp(worldX, minX, maxX);
+    const ratio = (clampedX - slopeEdge.start.x) / slopeEdge.deltaX;
+
+    return slopeEdge.start.y + slopeEdge.deltaY * ratio;
   }
 
   getVelocity() {

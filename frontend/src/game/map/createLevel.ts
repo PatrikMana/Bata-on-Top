@@ -381,6 +381,7 @@ function createTiledObstacle(
   worldX: number,
   worldY: number,
   mapId: string,
+  physicsType: ObstacleType = obstacle.type,
 ) {
   const isHookable = HOOKABLE_OBSTACLE_TYPES.has(obstacle.type);
   const { row, column } = getAutotilePosition(obstacle, sectionObstacles);
@@ -393,8 +394,8 @@ function createTiledObstacle(
   const rotationRad = Phaser.Math.DegToRad(obstacle.rotation);
   const body = scene.matter.add.rectangle(worldX, worldY, obstacle.width, obstacle.height, {
     isStatic: true,
-    isSensor: obstacle.type === 'finish',
-    label: `obstacle:${obstacle.type}:${obstacle.id}`,
+    isSensor: physicsType === 'finish',
+    label: `obstacle:${physicsType}:${obstacle.id}`,
     angle: rotationRad,
   });
   const image = scene.add
@@ -427,12 +428,15 @@ function createStaticObstacle(
   textureKey: string,
 ) {
   const previewTextureKey = getObstaclePreviewTextureKey(scene, mapId, obstacle);
+  const physicsType =
+    obstacle.type === 'slope' && !isTriangleSlopeObstacle(obstacle) ? 'normal' : obstacle.type;
 
   if (previewTextureKey) {
-    if (obstacle.type === 'slope') {
+    if (obstacle.type === 'slope' && isTriangleSlopeObstacle(obstacle)) {
       return createSlopeObstacle(
         scene,
         obstacle,
+        sectionObstacles,
         sectionIndex,
         worldX,
         worldY,
@@ -447,6 +451,7 @@ function createStaticObstacle(
       worldX,
       worldY,
       previewTextureKey,
+      physicsType,
     );
   }
 
@@ -458,6 +463,7 @@ function createStaticObstacle(
     worldX,
     worldY,
     mapId,
+    physicsType,
   );
 
   if (tiledObstacle) {
@@ -471,7 +477,48 @@ function createStaticObstacle(
     worldX,
     worldY,
     textureKey,
+    physicsType,
   );
+}
+
+function isTriangleSlopeObstacle(obstacle: ObstacleDefinition) {
+  const assetId = getNormalizedAssetId(obstacle.assetId).toLowerCase();
+  const previewTilePath = obstacle.previewTilePath?.toLowerCase() ?? '';
+
+  return assetId === 'sikmej' || previewTilePath.startsWith('sikmej-');
+}
+
+function isSlopeSupportObstacle(obstacle: ObstacleDefinition) {
+  if (obstacle.rotation !== 0) {
+    return false;
+  }
+
+  return (
+    obstacle.type === 'normal' ||
+    (obstacle.type === 'slope' && !isTriangleSlopeObstacle(obstacle))
+  );
+}
+
+function hasHorizontalSlopeSupport(
+  obstacle: ObstacleDefinition,
+  sectionObstacles: ObstacleDefinition[],
+) {
+  const obstacleBounds = getObstacleBounds(obstacle);
+
+  return sectionObstacles.some((candidate) => {
+    if (candidate.id === obstacle.id || !isSlopeSupportObstacle(candidate)) {
+      return false;
+    }
+
+    const candidateBounds = getObstacleBounds(candidate);
+    const touchesLeft = Math.abs(candidateBounds.maxX - obstacleBounds.minX) <= ADJACENCY_EPSILON;
+    const touchesRight = Math.abs(candidateBounds.minX - obstacleBounds.maxX) <= ADJACENCY_EPSILON;
+
+    return (
+      (touchesLeft || touchesRight) &&
+      rangesOverlap(obstacleBounds.minY, obstacleBounds.maxY, candidateBounds.minY, candidateBounds.maxY)
+    );
+  });
 }
 
 function createSingleTextureObstacle(
@@ -481,12 +528,13 @@ function createSingleTextureObstacle(
   worldX: number,
   worldY: number,
   textureKey: string,
+  physicsType: ObstacleType = obstacle.type,
 ) {
   const isHookable = HOOKABLE_OBSTACLE_TYPES.has(obstacle.type);
   const image = scene.matter.add.image(worldX, worldY, textureKey, undefined, {
     isStatic: true,
-    isSensor: obstacle.type === 'finish',
-    label: `obstacle:${obstacle.type}:${obstacle.id}`,
+    isSensor: physicsType === 'finish',
+    label: `obstacle:${physicsType}:${obstacle.id}`,
   });
 
   image
@@ -501,8 +549,8 @@ function createSingleTextureObstacle(
     },
     {
       isStatic: true,
-      isSensor: obstacle.type === 'finish',
-      label: `obstacle:${obstacle.type}:${obstacle.id}`,
+      isSensor: physicsType === 'finish',
+      label: `obstacle:${physicsType}:${obstacle.id}`,
     },
   );
   image.setRotation(Phaser.Math.DegToRad(obstacle.rotation));
@@ -674,6 +722,7 @@ function getSlopeDirection(obstacle: ObstacleDefinition) {
 function createSlopeObstacle(
   scene: Phaser.Scene,
   obstacle: ObstacleDefinition,
+  sectionObstacles: ObstacleDefinition[],
   sectionIndex: number,
   worldX: number,
   worldY: number,
@@ -706,6 +755,7 @@ function createSlopeObstacle(
   matterBody.plugin = {
     ...matterBody.plugin,
     slopeDirection: getSlopeDirection(obstacle),
+    standableSlope: hasHorizontalSlopeSupport(obstacle, sectionObstacles),
   };
   matterBody.label = `obstacle:${obstacle.type}:${obstacle.id}`;
 
