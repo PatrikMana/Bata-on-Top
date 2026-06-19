@@ -1,11 +1,15 @@
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { LeaderboardItem } from '../api/leaderboardApi';
 import { formatTimeMs } from './formatTime';
+import { getMenuItemClassName, useMenuKeys } from './useMenuKeys';
 
 type LeaderboardProps = {
   items: LeaderboardItem[];
   isLoading: boolean;
   errorMessage?: string;
+  menuKeysEnabled?: boolean;
+  onLeaveLanguageMenu?: () => void;
   onRefresh: () => void;
   onBack: () => void;
 };
@@ -14,10 +18,28 @@ export function Leaderboard({
   items,
   isLoading,
   errorMessage,
+  menuKeysEnabled = true,
+  onLeaveLanguageMenu,
   onRefresh,
   onBack,
 }: LeaderboardProps) {
   const { t } = useTranslation();
+
+  const menuItems = useMemo(
+    () => [
+      { id: 'refresh', onActivate: onRefresh, disabled: isLoading },
+      { id: 'back', onActivate: onBack },
+    ],
+    [isLoading, onBack, onRefresh],
+  );
+
+  const { isFocused } = useMenuKeys({
+    items: menuItems,
+    layout: 'horizontal',
+    enabled: menuKeysEnabled,
+    onBack,
+    onLeaveDown: onLeaveLanguageMenu,
+  });
 
   return (
     <section className="screen leaderboard-screen">
@@ -44,11 +66,20 @@ export function Leaderboard({
         )}
 
         <div className="button-row">
-          <button type="button" className="pixel-button primary-button" onClick={onRefresh}>
+          <button
+            type="button"
+            className={getMenuItemClassName('pixel-button primary-button', isFocused(0))}
+            onClick={onRefresh}
+            disabled={isLoading}
+          >
             {t('leaderboard.refresh')}
           </button>
 
-          <button type="button" className="pixel-button ghost-button" onClick={onBack}>
+          <button
+            type="button"
+            className={getMenuItemClassName('pixel-button ghost-button', isFocused(1))}
+            onClick={onBack}
+          >
             {t('common.backToMenu')}
           </button>
         </div>

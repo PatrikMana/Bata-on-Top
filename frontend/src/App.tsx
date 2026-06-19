@@ -13,6 +13,7 @@ import { resolveErrorMessage } from './i18n/resolveErrorMessage';
 import { StartScreen } from './ui/StartScreen';
 
 type AppScreen = 'start' | 'map-select' | 'playing' | 'finish' | 'leaderboard';
+type KeyboardRegion = 'content' | 'language';
 const PLAYER_NAME_STORAGE_KEY = 'bata-on-top-player-name';
 
 function App() {
@@ -36,8 +37,21 @@ function App() {
   const [leaderboardItems, setLeaderboardItems] = useState<LeaderboardItem[]>([]);
   const [isLeaderboardLoading, setIsLeaderboardLoading] = useState(false);
   const [leaderboardError, setLeaderboardError] = useState<string>();
+  const [keyboardRegions, setKeyboardRegions] = useState<Record<string, KeyboardRegion>>({});
 
   const isRunPaused = pauseStartedAtMs !== null;
+  const showLanguageSwitcher = screen !== 'playing' || isRunPaused;
+  const keyboardRegionKey = `${screen}:${isRunPaused}:${pendingMap ? 'modal' : 'none'}`;
+  const keyboardRegion = keyboardRegions[keyboardRegionKey] ?? 'content';
+  const contentMenuKeysEnabled = keyboardRegion === 'content' && !pendingMap;
+  const languageMenuKeysEnabled = showLanguageSwitcher && keyboardRegion === 'language' && !pendingMap;
+
+  function setKeyboardRegion(region: KeyboardRegion) {
+    setKeyboardRegions((currentRegions) => ({
+      ...currentRegions,
+      [keyboardRegionKey]: region,
+    }));
+  }
 
   useEffect(() => {
     if (screen !== 'playing' || startTimeMs === null || isRunPaused) {
@@ -178,6 +192,8 @@ function App() {
       <StartScreen
         mode="menu"
         maps={AVAILABLE_MAPS}
+        menuKeysEnabled={contentMenuKeysEnabled}
+        onLeaveLanguageMenu={() => setKeyboardRegion('language')}
         onStart={handleShowMapSelect}
         onShowLeaderboard={handleShowLeaderboard}
       />
@@ -188,6 +204,8 @@ function App() {
         <StartScreen
           mode="map-select"
           maps={AVAILABLE_MAPS}
+          menuKeysEnabled={contentMenuKeysEnabled}
+          onLeaveLanguageMenu={() => setKeyboardRegion('language')}
           onSelectMap={handleSelectMap}
           onBack={handleRestart}
         />
@@ -218,6 +236,8 @@ function App() {
 
         {isRunPaused && (
           <PauseMenuModal
+            menuKeysEnabled={contentMenuKeysEnabled}
+            onLeaveLanguageMenu={() => setKeyboardRegion('language')}
             onResume={handleResumeRun}
             onRestart={handleRestartRun}
             onBackToMenu={handleRestart}
@@ -230,6 +250,8 @@ function App() {
       <FinishScreen
         playerName={playerName}
         timeMs={finalTimeMs}
+        menuKeysEnabled={contentMenuKeysEnabled}
+        onLeaveLanguageMenu={() => setKeyboardRegion('language')}
         onRestart={handleRestart}
         onShowLeaderboard={handleShowLeaderboard}
       />
@@ -240,17 +262,22 @@ function App() {
         items={leaderboardItems}
         isLoading={isLeaderboardLoading}
         errorMessage={leaderboardError}
+        menuKeysEnabled={contentMenuKeysEnabled}
+        onLeaveLanguageMenu={() => setKeyboardRegion('language')}
         onRefresh={loadLeaderboard}
         onBack={handleRestart}
       />
     );
   }
 
-  const showLanguageSwitcher = screen !== 'playing' || isRunPaused;
-
   return (
     <>
-      {showLanguageSwitcher && <LanguageSwitcher />}
+      {showLanguageSwitcher && (
+        <LanguageSwitcher
+          menuKeysEnabled={languageMenuKeysEnabled}
+          onLeaveLanguageMenu={() => setKeyboardRegion('content')}
+        />
+      )}
       {screenContent}
     </>
   );
