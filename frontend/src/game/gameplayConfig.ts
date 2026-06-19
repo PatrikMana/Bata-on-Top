@@ -4,7 +4,7 @@ export const PLAYER_CONFIG = {
   spawnX: 640,
   groundOffset: 0,
   maxGroundSpeed: 5.2,
-  normalGroundDeceleration: 0.78,
+  normalGroundDeceleration: 0,
   iceAcceleration: 0.16,
   iceDeceleration: 0.985,
   iceStopSpeed: 0.2,

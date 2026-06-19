@@ -311,7 +311,7 @@ export class Player {
       return;
     }
 
-    this.gameObject.setVelocityX(velocity.x * PLAYER_CONFIG.normalGroundDeceleration);
+    this.gameObject.setVelocityX(0);
   }
 
   private applyGroundMovement(moveDirection: number) {
@@ -340,7 +340,7 @@ export class Player {
     }
 
     if (moveDirection === 0) {
-      this.gameObject.setVelocityX(velocity.x * PLAYER_CONFIG.normalGroundDeceleration);
+      this.gameObject.setVelocityX(0);
       return;
     }
 
