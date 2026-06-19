@@ -1,0 +1,522 @@
+Bata-on-Top - project context snapshot
+Generated for handoff / AI context.
+
+Project overview
+================
+
+Project name: Bata-on-Top
+
+Bata-on-Top is a simple 2D browser physics climbing game for Bata / MDC internship practice and internal events, meetups, conferences, MDC parties, etc. The goal is not an AAA game, but a functional, simple, skill-based web game with Bata/MDC theming.
+
+The gameplay is inspired by Jump King / tower climb games. The player starts at the bottom of a vertical map and tries to climb upward. The intended final goal is a pair of golden shoes at the top.
+
+The original design idea included a shoelace grappling-hook mechanic. Current implemented gameplay focus is Jump King style player movement, platform behavior, section transitions, map loading, and map builder tooling.
+
+Target platforms:
+- PC
+- mobile
+- tablet
+
+Frontend stack:
+- Vite
+- React
+- TypeScript
+- Phaser
+- Phaser Matter Physics through this.matter
+
+Matter.js is not installed separately. Physics uses Phaser Matter.
+
+Backend plan
+============
+
+Backend will be Laravel API with MySQL.
+
+Backend responsibilities:
+- start run
+- finish run
+- trusted server-side time measurement
+- leaderboard
+
+Frontend must not send final time as a trusted value. Backend calculates trusted time using server time.
+
+Planned endpoints:
+- POST /api/runs/start
+- POST /api/runs/finish
+- GET /api/leaderboard
+
+Frontend high-level structure
+=============================
+
+Main frontend folder:
+
+frontend/
+  public/
+  src/
+    api/
+      runsApi.ts
+      leaderboardApi.ts
+    ui/
+      StartScreen.tsx
+      NicknameModal.tsx
+      GameHud.tsx
+      FinishScreen.tsx
+      Leaderboard.tsx
+      DeveloperConfigPanel.tsx
+      formatTime.ts
+    styles/
+      global.css
+    game/
+      PhaserGame.tsx
+      gameConfig.ts
+      gameplayConfig.ts
+      scenes/
+        BootScene.ts
+        PreloadScene.ts
+        GameScene.ts
+      objects/
+        Player.ts
+        playerAnimations.ts
+      systems/
+      map/
+        availableMaps.ts
+        mapTypes.ts
+        loadMapData.ts
+        createLevel.ts
+    App.tsx
+    main.tsx
+
+UI / menu state
+===============
+
+The frontend menu has a dark pixel-art style matching reference screenshots:
+- black / dark background
+- red-white pixel UI accents
+- Pixelify Sans font for text
+- previous symbol/star style kept for symbols where applicable
+
+Start menu includes:
+- play / map selection flow
+- leaderboard
+- nickname modal before starting a map
+- nickname saved to localStorage
+- developer mode checkbox in bottom-right area
+
+Map selection:
+- shows only map name and a select/start button
+- does not show version or section count
+
+Leaderboard:
+- dark-mode styling matching the rest of menu
+
+In-game UI:
+- floating navbar was removed
+- top-left shows player nickname and timer stacked vertically
+- timer format is hh:mm:ss style
+- ESC pauses the game
+- pause modal options:
+  1. continue
+  2. restart run
+  3. back to menu / abort run
+
+Developer mode
+==============
+
+Developer mode can be toggled from menu.
+
+When enabled and a map starts, a developer config panel appears in-game in the top-right area.
+
+The developer panel:
+- exposes numeric player config values from gameplayConfig.ts
+- uses sliders plus numeric inputs
+- applies values live
+- has a "save variables" action that writes values back to frontend/src/game/gameplayConfig.ts through a Vite dev-only endpoint
+
+Important bug already fixed:
+- changing player dimensions/config live used to teleport the player to top-left
+- Player.ts now preserves position/velocity around collider updates
+
+Map system
+==========
+
+Maps are convention-based and stored under:
+
+frontend/public/maps/{mapId}/
+
+There is no map.json.
+
+Map metadata lives in TypeScript:
+
+frontend/src/game/map/availableMaps.ts
+
+Example metadata:
+
+AVAILABLE_MAPS = [
+  {
+    id: 'bata-tower',
+    name: 'Bata Tower',
+    version: 'dev-1',
+    sectionCount: 3,
+    sectionWidth: 1280,
+    sectionHeight: 720,
+  },
+]
+
+Logical section size is fixed, commonly 1280 x 720. Sections do not scale based on viewport, so leaderboard fairness is preserved. The screen/camera adapts to the map, not the other way around.
+
+Section layout:
+- section 0 is bottom
+- section 1 is above it
+- section 2 is above section 1
+- etc.
+
+Current implementation loads only the active section for gameplay. When player exits upward/downward, the next/previous section is loaded/switched while preserving player velocity.
+
+Map folder structure:
+
+public/maps/{mapId}/
+  assets/
+    {assetId}/
+      row-1-column-1.png
+      row-1-column-2.png
+      ...
+    sikmej/
+      sikmej-brick-pravo.png
+      sikmej-brick-levo.png
+      sikmej-brick-pravo naopak.png
+      sikmej-brick-levo naopak.png
+  sections/
+    0/
+      bg.png
+      obstacles/
+        obstacles.json
+    1/
+      bg.png
+      obstacles/
+        obstacles.json
+
+Path conventions:
+- /maps/{mapId}/sections/{sectionIndex}/bg.png
+- /maps/{mapId}/sections/{sectionIndex}/obstacles/obstacles.json
+- /maps/{mapId}/assets/{assetId}.png
+- /maps/{mapId}/assets/{assetId}/row-{row}-column-{column}.png
+- /maps/{mapId}/assets/{assetId}/{previewTilePath}
+
+The game loader supports:
+- single asset PNGs
+- 3x3 tiled asset folders
+- exact previewTilePath files generated by MapBuilder
+
+Obstacle JSON
+=============
+
+Obstacle file format:
+
+{
+  "obstacles": [
+    {
+      "id": "block-1-2",
+      "type": "normal",
+      "assetId": "brick",
+      "x": 100,
+      "y": 120,
+      "width": 40,
+      "height": 40,
+      "rotation": 0,
+      "previewTilePath": "row-1-column-1.png"
+    }
+  ]
+}
+
+Obstacle fields:
+- id: unique per section
+- type: normal | ice | slope | finish | danger
+- assetId: asset folder or image id
+- previewTilePath: optional exact texture file inside asset folder
+- x/y: center position in section coordinates
+- width/height: obstacle size
+- rotation: degrees
+
+Obstacle types
+==============
+
+normal:
+- standard platform
+- player can stand
+- hookable
+
+ice:
+- slippery platform
+- player can stand
+- hookable
+- current behavior:
+  - same maximum walking speed as normal ground
+  - slower acceleration to reach max speed
+  - keeps horizontal landing momentum from flight
+  - gradually slides to a stop based on landing velocity
+  - low/no Matter friction
+
+slope:
+- sloped / slide platform
+- hookable
+- player cannot stand normally
+- player is treated as not grounded
+- applies slope slide behavior
+- current slope collider is generated from PNG alpha mask, so transparent texture pixels are not collidable
+
+finish:
+- target / golden shoes
+- not hookable
+- should finish run on touch
+
+danger:
+- reserved for future
+- not hookable
+- later may reset player or invalidate run
+
+Hookable types:
+- normal
+- ice
+- slope
+
+Non-hookable types:
+- finish
+- danger
+
+Level creation details
+======================
+
+File:
+frontend/src/game/map/createLevel.ts
+
+Responsibilities:
+- preload map background and assets
+- load exact previewTilePath textures
+- create background image stretched to 1280 x 720
+- create obstacle images and Matter bodies
+- auto-tile connected normal/ice blocks using 3x3 asset folders
+- generate fallback purple/pink checker texture for missing assets
+- create section zero bottom ground
+- destroy previous level bodies/objects on section switch
+
+Important implementation detail:
+- slope visual is a normal Phaser image
+- slope Matter collider is a separate Matter body
+- the body is stored in image data as matterBody
+- this prevents Matter center-of-mass origin changes from visually shifting slope textures
+
+Slope alpha collider
+====================
+
+For slope obstacles with transparent PNG assets:
+- game reads alpha channel using scene.textures.getPixelAlpha
+- transparent pixels are ignored
+- opaque pixels are converted to points
+- a convex hull is created
+- Matter fromVertices body is created from that hull
+
+This fixed:
+- player standing on invisible square area around triangle
+- player levitating on slope
+- slope texture shifting/deforming when attached directly to Matter image
+
+Player movement
+===============
+
+File:
+frontend/src/game/objects/Player.ts
+
+Current player control:
+- A / left arrow: move left
+- D / right arrow: move right
+- Space: charge jump
+
+Movement design:
+- player is controllable only when grounded
+- in air player is not controllable
+- while charging jump player cannot move
+- releasing jump performs charged jump
+- if max charge is reached, player auto-jumps
+- shorter charge creates smaller jump
+- current movement is Jump King inspired
+
+Section transitions:
+- if player exits above screen, next section loads
+- player appears at bottom of next section with same velocity
+- if player falls below and section index > 0, previous section loads
+- player appears at top/bottom equivalent with same velocity
+- sections can load beyond original sectionCount as long as files exist
+
+Ground behavior:
+- normal: direct ground movement
+- ice: slippery, delayed acceleration, landing momentum based slide
+- slope: not grounded, forced slide
+
+Wall behavior:
+- player bounces from walls/side collisions
+- side bounce depends on incoming velocity
+- repeated bounce loses some momentum
+- screen edges bounce similarly to walls
+
+Player animations
+=================
+
+Player textures were moved from Temp into the frontend asset structure.
+
+Animations currently include:
+- idle
+- run left/right
+- jump left/right
+- charge jump
+
+Important fixes already made:
+- idle no longer flickers with flight animation
+- player collider remained same as before texture work
+- visual dimensions normalized so run/jump are not squished relative to idle
+- jump-left frame order corrected because source sheet was reversed
+
+Gameplay config
+===============
+
+File:
+frontend/src/game/gameplayConfig.ts
+
+Current relevant config values:
+
+width: 42
+height: 58
+spawnX: 640
+groundOffset: 0
+maxGroundSpeed: 5.2
+normalGroundDeceleration: 0.78
+iceAcceleration: 0.16
+iceSlideDeceleration: 0.055
+iceLandingSlideDurationScale: 2.1
+iceLandingVelocityRetention: 1
+iceMinLandingSlideSpeed: 0.2
+iceStopSpeed: 0.08
+iceStandingTolerance: 34
+wallBounceMinSpeed: 1.6
+wallBounceLowImpactMultiplier: 0.34
+wallBounceHighImpactMultiplier: 0.76
+wallBounceHighImpactSpeed: 7.8
+wallBounceMaxSpeed: 6.2
+wallBounceVerticalDampening: 0.9
+wallBounceCooldownMs: 120
+wallInputBounceCooldownMs: 45
+wallBounceMaxHorizontalOverlap: 30
+wallBumpSpeed: 1.35
+wallBounceSeparationPx: 2
+jumpMinHoldMs: 25
+jumpMaxHoldMs: 850
+jumpMinVelocityY: -4.8
+jumpMaxVelocityY: -18.4
+jumpMinVelocityX: 3.2
+jumpMaxVelocityX: 7.8
+jumpHorizontalPowerCurve: 0.72
+jumpVerticalPowerCurve: 1.85
+groundedContactGraceMs: 90
+slopeSlideAcceleration: 0.42
+slopeMaxSlideSpeed: 9
+
+MapBuilder
+==========
+
+There is a separate React app in:
+
+MapBuilder/
+
+Purpose:
+- create and edit maps using same game map structure
+- keep maps under MapBuilder/maps
+- create a new map folder from lowercased name with spaces replaced by hyphens
+- show available maps for editing
+
+MapBuilder UI:
+- left sidebar with sections/screens like PowerPoint slides
+- central canvas for drawing obstacles
+- sidebars scroll, whole page should not scroll
+- grid columns and rows max 40
+- per-section grid size
+- background upload per section
+- option to use same background as previous section
+- asset/block selection grouped by folders
+- import asset group
+- block type selection: normal, ice, slope
+- select tool activated by holding Shift
+- Delete key removes selected blocks
+- selection can be moved
+- selected blocks can have type changed together
+- slope type does not rotate asset automatically; it only sets type
+- auto-save writes map data after edits
+
+MapBuilder asset behavior:
+- blocks can reference:
+  - assetId
+  - previewTilePath
+- previewTilePath is important for exact tile textures such as slope triangle assets
+
+Important MapBuilder/game integration:
+- MapBuilder can output assetId like "sikmej" and previewTilePath like "sikmej-brick-pravo.png"
+- game loader now supports this path:
+  /maps/{mapId}/assets/sikmej/sikmej-brick-pravo.png
+
+Map authoring docs
+==================
+
+There is a map authoring documentation file:
+
+frontend/public/maps/MAP_AUTHORING.md
+
+It explains:
+- section coordinate system
+- map folder structure
+- obstacle JSON format
+- how to author obstacles from screenshots
+- how to maintain continuity between sections
+- how to create blocky Jump King style layouts
+
+Known current focus / state
+===========================
+
+Recently worked areas:
+- slope alpha collider
+- slope sliding
+- ice behavior
+- player movement polish
+- MapBuilder-generated maps
+
+Latest ice design intent:
+- max speed on ice equals normal walking max speed
+- reaching max speed on ice takes time
+- landing on ice preserves horizontal flight velocity up to maxGroundSpeed
+- stronger incoming velocity means longer slide duration
+- without input, player gradually slides to a stop
+
+Important files to inspect first for gameplay:
+- frontend/src/game/objects/Player.ts
+- frontend/src/game/gameplayConfig.ts
+- frontend/src/game/map/createLevel.ts
+- frontend/src/game/scenes/GameScene.ts
+- frontend/src/game/map/loadMapData.ts
+- frontend/src/game/map/mapTypes.ts
+
+Important files to inspect first for menu/UI:
+- frontend/src/App.tsx
+- frontend/src/ui/StartScreen.tsx
+- frontend/src/ui/NicknameModal.tsx
+- frontend/src/ui/DeveloperConfigPanel.tsx
+- frontend/src/styles/global.css
+
+Important files to inspect first for MapBuilder:
+- MapBuilder/src/App.tsx
+- MapBuilder/vite.config.ts
+- MapBuilder/src/styles/global.css
+
+Developer preference from recent work
+====================================
+
+Do not auto-start frontend or MapBuilder dev server unless explicitly asked.
+The user starts apps manually.
+
+When changing frontend code, running npm run build in frontend is acceptable and has been used for verification.
+

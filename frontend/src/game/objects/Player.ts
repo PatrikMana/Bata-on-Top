@@ -138,7 +138,16 @@ export class Player {
     this.applyWallBounce(obstacleBody);
 
     if (obstacleType === 'slope') {
-      this.applySlopeSlide(obstacleBody);
+      const playerBody = this.getBody();
+      const isPlayerCenterOverSlope =
+        playerBody.position.x >= obstacleBody.bounds.min.x &&
+        playerBody.position.x <= obstacleBody.bounds.max.x;
+
+      // Apply slope slide only if the player's center is actually over the slope,
+      // avoiding side-touches from triggering the slide state prematurely.
+      if (isPlayerCenterOverSlope) {
+        this.applySlopeSlide(obstacleBody);
+      }
       return;
     }
 
