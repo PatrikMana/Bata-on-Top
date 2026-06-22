@@ -489,14 +489,7 @@ function isTriangleSlopeObstacle(obstacle: ObstacleDefinition) {
 }
 
 function isSlopeSupportObstacle(obstacle: ObstacleDefinition) {
-  if (obstacle.rotation !== 0) {
-    return false;
-  }
-
-  return (
-    obstacle.type === 'normal' ||
-    (obstacle.type === 'slope' && !isTriangleSlopeObstacle(obstacle))
-  );
+  return obstacle.type === 'normal' && obstacle.rotation === 0;
 }
 
 function hasHorizontalSlopeSupport(
