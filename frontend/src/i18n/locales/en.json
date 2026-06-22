@@ -28,6 +28,7 @@
   "leaderboard": {
     "title": "Leaderboard",
     "description": "Fastest climbs to the top.",
+    "categoryLabel": "Map categories",
     "loading": "Loading leaderboard...",
     "empty": "No results yet.",
     "refresh": "Refresh"

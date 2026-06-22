@@ -1,6 +1,14 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getLeaderboard, type LeaderboardItem } from './api/leaderboardApi';
+import {
+  abortRun,
+  finishRun,
+  heartbeatRun,
+  sendAbortRunBeacon,
+  startRun,
+  type StartRunResponse,
+} from './api/runsApi';
 import { PhaserGame } from './game/PhaserGame';
 import { AVAILABLE_MAPS, type AvailableMap } from './game/map/availableMaps';
 import { FinishScreen } from './ui/FinishScreen';
@@ -15,6 +23,7 @@ import { StartScreen } from './ui/StartScreen';
 type AppScreen = 'start' | 'map-select' | 'playing' | 'finish' | 'leaderboard';
 type KeyboardRegion = 'content' | 'language';
 const PLAYER_NAME_STORAGE_KEY = 'bata-on-top-player-name';
+const RUN_HEARTBEAT_INTERVAL_MS = 5_000;
 
 function App() {
   const { t } = useTranslation();
@@ -33,11 +42,15 @@ function App() {
   const [elapsedMs, setElapsedMs] = useState(0);
   const [finalTimeMs, setFinalTimeMs] = useState(0);
   const [runInstanceId, setRunInstanceId] = useState(0);
+  const [activeRun, setActiveRun] = useState<StartRunResponse | null>(null);
 
   const [leaderboardItems, setLeaderboardItems] = useState<LeaderboardItem[]>([]);
   const [isLeaderboardLoading, setIsLeaderboardLoading] = useState(false);
   const [leaderboardError, setLeaderboardError] = useState<string>();
+  const [leaderboardMap, setLeaderboardMap] = useState<AvailableMap>(AVAILABLE_MAPS[0]);
   const [keyboardRegions, setKeyboardRegions] = useState<Record<string, KeyboardRegion>>({});
+  const activeRunRef = useRef<StartRunResponse | null>(null);
+  const isFinishingRunRef = useRef(false);
 
   const isRunPaused = pauseStartedAtMs !== null;
   const showLanguageSwitcher = screen !== 'playing' || isRunPaused;
@@ -52,6 +65,10 @@ function App() {
       [keyboardRegionKey]: region,
     }));
   }
+
+  useEffect(() => {
+    activeRunRef.current = activeRun;
+  }, [activeRun]);
 
   useEffect(() => {
     if (screen !== 'playing' || startTimeMs === null || isRunPaused) {
@@ -88,6 +105,45 @@ function App() {
     };
   }, [pauseStartedAtMs, screen]);
 
+  useEffect(() => {
+    if (screen !== 'playing' || !activeRun) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      void heartbeatRun({
+        runId: activeRun.runId,
+        runToken: activeRun.runToken,
+      });
+    }, RUN_HEARTBEAT_INTERVAL_MS);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [activeRun, screen]);
+
+  useEffect(() => {
+    function handlePageHide() {
+      const run = activeRunRef.current;
+
+      if (!run) {
+        return;
+      }
+
+      sendAbortRunBeacon({
+        runId: run.runId,
+        runToken: run.runToken,
+      });
+      activeRunRef.current = null;
+    }
+
+    window.addEventListener('pagehide', handlePageHide);
+
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide);
+    };
+  }, []);
+
   function handleShowMapSelect() {
     setScreen('map-select');
   }
@@ -100,7 +156,14 @@ function App() {
     setStartTimeMs(Date.now());
   }
 
-  function startMap(map: AvailableMap) {
+  async function startMap(map: AvailableMap, runPlayerName = playerName) {
+    const run = await startRun({
+      playerName: runPlayerName,
+      mapName: map.name,
+    });
+
+    setActiveRun(run);
+    isFinishingRunRef.current = false;
     setSelectedMap(map);
     setRunInstanceId((currentId) => currentId + 1);
     resetRunClock();
@@ -115,7 +178,7 @@ function App() {
       return;
     }
 
-    startMap(map);
+    void startMap(map);
   }
 
   function handleSaveNickname() {
@@ -134,7 +197,7 @@ function App() {
     setPendingMap(null);
 
     if (mapToStart) {
-      startMap(mapToStart);
+      void startMap(mapToStart, trimmedName);
     }
   }
 
@@ -152,17 +215,36 @@ function App() {
     setPauseStartedAtMs(null);
   }
 
-  function handleRestartRun() {
-    setRunInstanceId((currentId) => currentId + 1);
-    resetRunClock();
+  async function abortActiveRun() {
+    const run = activeRunRef.current;
+
+    if (!run) {
+      return;
+    }
+
+    activeRunRef.current = null;
+    isFinishingRunRef.current = false;
+    setActiveRun(null);
+
+    await abortRun({
+      runId: run.runId,
+      runToken: run.runToken,
+    }).catch(() => undefined);
   }
 
-  async function loadLeaderboard() {
+  function handleRestartRun() {
+    void (async () => {
+      await abortActiveRun();
+      await startMap(selectedMap);
+    })();
+  }
+
+  async function loadLeaderboard(map = leaderboardMap) {
     setIsLeaderboardLoading(true);
     setLeaderboardError(undefined);
 
     try {
-      const items = await getLeaderboard();
+      const items = await getLeaderboard({ mapName: map.name });
       setLeaderboardItems(items);
     } catch (error) {
       setLeaderboardError(resolveErrorMessage(error, 'errors.leaderboardLoadFailed'));
@@ -172,25 +254,59 @@ function App() {
   }
 
   function handleShowLeaderboard() {
+    setLeaderboardMap(selectedMap);
     setScreen('leaderboard');
-    void loadLeaderboard();
+    void loadLeaderboard(selectedMap);
+  }
+
+  function handleSelectLeaderboardMap(map: AvailableMap) {
+    setLeaderboardMap(map);
+    void loadLeaderboard(map);
   }
 
   function handleGameFinish() {
-    if (screen !== 'playing' || startTimeMs === null) {
+    if (screen !== 'playing' || startTimeMs === null || isFinishingRunRef.current) {
       return;
     }
 
+    isFinishingRunRef.current = true;
     const finishedElapsedMs = Date.now() - startTimeMs - totalPausedMs;
+    const run = activeRunRef.current;
 
-    setElapsedMs(finishedElapsedMs);
-    setFinalTimeMs(finishedElapsedMs);
-    setPauseStartedAtMs(null);
-    setStartTimeMs(null);
-    setScreen('finish');
+    if (!run) {
+      setElapsedMs(finishedElapsedMs);
+      setFinalTimeMs(finishedElapsedMs);
+      setPauseStartedAtMs(null);
+      setStartTimeMs(null);
+      setScreen('finish');
+      return;
+    }
+
+    activeRunRef.current = null;
+    setActiveRun(null);
+
+    void finishRun({
+      runId: run.runId,
+      runToken: run.runToken,
+    })
+      .then((finishedRun) => {
+        setElapsedMs(finishedRun.timeMs);
+        setFinalTimeMs(finishedRun.timeMs);
+      })
+      .catch(() => {
+        setElapsedMs(finishedElapsedMs);
+        setFinalTimeMs(finishedElapsedMs);
+      })
+      .finally(() => {
+        setPauseStartedAtMs(null);
+        setStartTimeMs(null);
+        setScreen('finish');
+      });
   }
 
   function handleRestart() {
+    void abortActiveRun();
+    isFinishingRunRef.current = false;
     setElapsedMs(0);
     setFinalTimeMs(0);
     setStartTimeMs(null);
@@ -275,11 +391,14 @@ function App() {
     screenContent = (
       <Leaderboard
         items={leaderboardItems}
+        maps={AVAILABLE_MAPS}
+        selectedMap={leaderboardMap}
         isLoading={isLeaderboardLoading}
         errorMessage={leaderboardError}
         menuKeysEnabled={contentMenuKeysEnabled}
         onLeaveLanguageMenu={() => setKeyboardRegion('language')}
-        onRefresh={loadLeaderboard}
+        onSelectMap={handleSelectLeaderboardMap}
+        onRefresh={() => void loadLeaderboard()}
         onBack={handleRestart}
       />
     );

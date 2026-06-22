@@ -1,7 +1,6 @@
 import { getHttpErrorMessage } from '../i18n/resolveErrorMessage';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:8000/api';
-const MAP_VERSION = import.meta.env.VITE_MAP_VERSION ?? 'dev-1';
 
 export type StartRunResponse = {
   runId: number;
@@ -18,7 +17,7 @@ export type FinishRunResponse = {
 
 type StartRunPayload = {
   playerName: string;
-  mapVersion?: string;
+  mapName: string;
 };
 
 type FinishRunPayload = {
@@ -55,9 +54,43 @@ export async function startRun(
     method: 'POST',
     body: JSON.stringify({
       playerName: payload.playerName,
-      mapVersion: payload.mapVersion ?? MAP_VERSION,
+      mapName: payload.mapName,
     }),
   });
+}
+
+export async function heartbeatRun(
+  payload: FinishRunPayload,
+): Promise<void> {
+  await requestJson(`${API_BASE_URL}/runs/heartbeat`, {
+    method: 'POST',
+    body: JSON.stringify({
+      runId: payload.runId,
+      runToken: payload.runToken,
+    }),
+  });
+}
+
+export async function abortRun(
+  payload: FinishRunPayload,
+): Promise<void> {
+  await requestJson(`${API_BASE_URL}/runs/abort`, {
+    method: 'POST',
+    body: JSON.stringify({
+      runId: payload.runId,
+      runToken: payload.runToken,
+    }),
+  });
+}
+
+export function sendAbortRunBeacon(payload: FinishRunPayload): boolean {
+  const body = JSON.stringify({
+    runId: payload.runId,
+    runToken: payload.runToken,
+  });
+  const blob = new Blob([body], { type: 'application/json' });
+
+  return navigator.sendBeacon(`${API_BASE_URL}/runs/abort`, blob);
 }
 
 export async function finishRun(

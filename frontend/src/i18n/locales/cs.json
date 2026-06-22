@@ -28,6 +28,7 @@
   "leaderboard": {
     "title": "Leaderboard",
     "description": "Nejrychlejší výstupy na vrchol.",
+    "categoryLabel": "Kategorie map",
     "loading": "Načítám leaderboard...",
     "empty": "Zatím tu nejsou žádné výsledky.",
     "refresh": "Obnovit"

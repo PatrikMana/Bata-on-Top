@@ -1,25 +1,32 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { LeaderboardItem } from '../api/leaderboardApi';
+import type { AvailableMap } from '../game/map/availableMaps';
 import { formatTimeMs } from './formatTime';
 import { getMenuItemClassName, useMenuKeys } from './useMenuKeys';
 
 type LeaderboardProps = {
   items: LeaderboardItem[];
+  maps: readonly AvailableMap[];
+  selectedMap: AvailableMap;
   isLoading: boolean;
   errorMessage?: string;
   menuKeysEnabled?: boolean;
   onLeaveLanguageMenu?: () => void;
+  onSelectMap: (map: AvailableMap) => void;
   onRefresh: () => void;
   onBack: () => void;
 };
 
 export function Leaderboard({
   items,
+  maps,
+  selectedMap,
   isLoading,
   errorMessage,
   menuKeysEnabled = true,
   onLeaveLanguageMenu,
+  onSelectMap,
   onRefresh,
   onBack,
 }: LeaderboardProps) {
@@ -47,6 +54,19 @@ export function Leaderboard({
         <h1>{t('leaderboard.title')}</h1>
 
         <p className="screen-description">{t('leaderboard.description')}</p>
+
+        <div className="leaderboard-map-tabs" aria-label={t('leaderboard.categoryLabel')}>
+          {maps.map((map) => (
+            <button
+              key={map.id}
+              type="button"
+              className={`leaderboard-map-tab ${selectedMap.id === map.id ? 'active' : ''}`}
+              onClick={() => onSelectMap(map)}
+            >
+              {map.name}
+            </button>
+          ))}
+        </div>
 
         {errorMessage && <p className="error-message">{errorMessage}</p>}
 

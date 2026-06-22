@@ -325,6 +325,35 @@ h1 {
   color: #b8b8b8;
 }
 
+.leaderboard-map-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 24px;
+}
+
+.leaderboard-map-tab {
+  border: 2px solid #f4f4f4;
+  padding: 9px 14px;
+  background: #111111;
+  color: #ffffff;
+  font-weight: 900;
+  text-transform: uppercase;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.8);
+}
+
+.leaderboard-map-tab.active {
+  background:
+    repeating-linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.08) 0,
+      rgba(255, 255, 255, 0.08) 1px,
+      transparent 1px,
+      transparent 4px
+    ),
+    #e10600;
+}
+
 .leaderboard-list {
   display: grid;
   gap: 12px;
