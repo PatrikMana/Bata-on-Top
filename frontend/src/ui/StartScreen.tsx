@@ -1,9 +1,12 @@
-import type { FormEvent } from 'react';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { AvailableMap } from '../game/map/availableMaps';
+import { getMenuItemClassName, useMenuKeys } from './useMenuKeys';
 
 type StartScreenProps = {
   maps: readonly AvailableMap[];
+  menuKeysEnabled?: boolean;
+  onLeaveLanguageMenu?: () => void;
   onBack?: () => void;
   onSelectMap?: (map: AvailableMap) => void;
   onShowLeaderboard?: () => void;
@@ -21,6 +24,8 @@ type StartScreenProps = {
 export function StartScreen({
   mode,
   maps,
+  menuKeysEnabled = true,
+  onLeaveLanguageMenu,
   onBack,
   onSelectMap,
   onShowLeaderboard,
@@ -28,10 +33,37 @@ export function StartScreen({
 }: StartScreenProps) {
   const { t } = useTranslation();
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    onStart?.();
-  }
+  const mainMenuItems = useMemo(
+    () => [
+      { id: 'play', onActivate: () => onStart?.() },
+      { id: 'leaderboard', onActivate: () => onShowLeaderboard?.() },
+    ],
+    [onShowLeaderboard, onStart],
+  );
+
+  const mapMenuItems = useMemo(
+    () => [
+      ...maps.map((map) => ({
+        id: map.id,
+        onActivate: () => onSelectMap?.(map),
+      })),
+      { id: 'back', onActivate: () => onBack?.() },
+    ],
+    [maps, onBack, onSelectMap],
+  );
+
+  const { isFocused: isMainMenuFocused } = useMenuKeys({
+    items: mainMenuItems,
+    enabled: mode === 'menu' && menuKeysEnabled,
+    onLeaveEnd: onLeaveLanguageMenu,
+  });
+
+  const { isFocused: isMapMenuFocused } = useMenuKeys({
+    items: mapMenuItems,
+    enabled: mode === 'map-select' && menuKeysEnabled,
+    onBack,
+    onLeaveEnd: onLeaveLanguageMenu,
+  });
 
   if (mode === 'map-select') {
     return (
@@ -42,8 +74,11 @@ export function StartScreen({
           <p className="screen-description">{t('mapSelect.description')}</p>
 
           <div className="map-grid">
-            {maps.map((map) => (
-              <article key={map.id} className="map-card">
+            {maps.map((map, index) => (
+              <article
+                key={map.id}
+                className={getMenuItemClassName('map-card', isMapMenuFocused(index))}
+              >
                 <span className="map-favorite" aria-hidden="true">
                   *
                 </span>
@@ -61,7 +96,11 @@ export function StartScreen({
             ))}
           </div>
 
-          <button type="button" className="pixel-button ghost-button full-button" onClick={onBack}>
+          <button
+            type="button"
+            className={getMenuItemClassName('pixel-button ghost-button full-button', isMapMenuFocused(maps.length))}
+            onClick={onBack}
+          >
             {t('common.backToMenu')}
           </button>
         </div>
@@ -78,15 +117,23 @@ export function StartScreen({
 
         <p className="screen-description">{t('start.description')}</p>
 
-        <form onSubmit={handleSubmit} className="start-form">
-          <button type="submit" className="pixel-button primary-button">
+        <div className="start-form">
+          <button
+            type="button"
+            className={getMenuItemClassName('pixel-button primary-button', isMainMenuFocused(0))}
+            onClick={() => onStart?.()}
+          >
             {t('start.play')}
           </button>
 
-          <button type="button" className="pixel-button secondary-button" onClick={onShowLeaderboard}>
+          <button
+            type="button"
+            className={getMenuItemClassName('pixel-button secondary-button', isMainMenuFocused(1))}
+            onClick={() => onShowLeaderboard?.()}
+          >
             {t('common.leaderboard')}
           </button>
-        </form>
+        </div>
       </div>
     </section>
   );

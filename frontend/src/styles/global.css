@@ -217,6 +217,23 @@ h1 {
     2px 2px 0 #f4f4f4;
 }
 
+.menu-item-focused {
+  filter: brightness(1.15);
+  outline: 2px solid #ffffff;
+  outline-offset: 2px;
+  transform: translate(-1px, -1px);
+  box-shadow:
+    inset 0 4px 0 rgba(255, 255, 255, 0.55),
+    6px 6px 0 #f4f4f4;
+}
+
+.map-card.menu-item-focused {
+  outline: 2px solid #ffffff;
+  outline-offset: 3px;
+  transform: translate(-2px, -2px);
+  box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.8);
+}
+
 .primary-button {
   background:
     repeating-linear-gradient(
@@ -594,6 +611,15 @@ h1 {
 .language-toggle-option.is-active:active {
   box-shadow: none;
   transform: none;
+}
+
+.language-toggle-option.menu-item-focused {
+  color: #ffffff;
+  outline: 2px solid #ffffff;
+  outline-offset: 1px;
+  filter: brightness(1.2);
+  transform: none;
+  box-shadow: none;
 }
 
 @media (max-width: 640px) {
