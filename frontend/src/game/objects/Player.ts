@@ -16,7 +16,6 @@ const SLOPE_STEP_EDGE_INSET = 4;
 const SLOPE_STEP_FOOT_OFFSET_RATIO = 0.35;
 const SLOPE_STEP_MAX_UP = 22;
 const SLOPE_STEP_VERTICAL_TOLERANCE = 20;
-const SLOPE_SLIDE_MIN_OVERLAP_RATIO = 0.08;
 const SLOPE_SLIDE_SURFACE_TOLERANCE = 32;
 
 function ensurePlayerTexture(scene: Phaser.Scene) {
@@ -148,6 +147,9 @@ export class Player {
 
       if (this.shouldSlideOnSlope(obstacleBody)) {
         this.applySlopeSlide(obstacleBody);
+      } else if (obstacleBody.plugin?.standableSlope && this.canStandOnSlopeEdge(obstacleBody)) {
+        this.groundType = 'normal';
+        this.lastGroundedAtMs = this.scene.time.now;
       }
       return;
     }
@@ -223,11 +225,9 @@ export class Player {
 
   private shouldSlideOnSlope(obstacleBody: MatterJS.BodyType) {
     const playerBody = this.getBody();
-    const overlapX =
-      Math.min(playerBody.bounds.max.x, obstacleBody.bounds.max.x) -
-      Math.max(playerBody.bounds.min.x, obstacleBody.bounds.min.x);
+    const overlapX = this.getHorizontalOverlapWithBody(obstacleBody);
 
-    if (overlapX <= PLAYER_CONFIG.width * SLOPE_SLIDE_MIN_OVERLAP_RATIO) {
+    if (overlapX <= PLAYER_CONFIG.width * PLAYER_CONFIG.slopeSlideMinOverlapRatio) {
       return false;
     }
 
@@ -248,6 +248,44 @@ export class Player {
     return (
       playerBody.bounds.max.y >= slopeSurfaceY - SLOPE_SLIDE_SURFACE_TOLERANCE &&
       playerBody.bounds.max.y <= slopeSurfaceY + SLOPE_SLIDE_SURFACE_TOLERANCE
+    );
+  }
+
+  private canStandOnSlopeEdge(obstacleBody: MatterJS.BodyType) {
+    const playerBody = this.getBody();
+    const overlapX = this.getHorizontalOverlapWithBody(obstacleBody);
+
+    if (
+      overlapX <= 0 ||
+      overlapX > PLAYER_CONFIG.width * PLAYER_CONFIG.slopeSlideMinOverlapRatio ||
+      playerBody.velocity.y < -0.5
+    ) {
+      return false;
+    }
+
+    const sampleX = Phaser.Math.Clamp(
+      playerBody.position.x,
+      obstacleBody.bounds.min.x + SLOPE_STEP_EDGE_INSET,
+      obstacleBody.bounds.max.x - SLOPE_STEP_EDGE_INSET,
+    );
+    const slopeSurfaceY = this.getSlopeSurfaceY(obstacleBody, sampleX);
+
+    if (slopeSurfaceY === null) {
+      return false;
+    }
+
+    return (
+      playerBody.bounds.max.y >= slopeSurfaceY - SLOPE_STEP_VERTICAL_TOLERANCE &&
+      playerBody.bounds.max.y <= slopeSurfaceY + SLOPE_STEP_VERTICAL_TOLERANCE
+    );
+  }
+
+  private getHorizontalOverlapWithBody(body: MatterJS.BodyType) {
+    const playerBody = this.getBody();
+
+    return (
+      Math.min(playerBody.bounds.max.x, body.bounds.max.x) -
+      Math.max(playerBody.bounds.min.x, body.bounds.min.x)
     );
   }
 

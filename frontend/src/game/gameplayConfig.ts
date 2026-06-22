@@ -30,6 +30,7 @@ export const PLAYER_CONFIG = {
   jumpHorizontalPowerCurve: 0.72,
   jumpVerticalPowerCurve: 1.85,
   groundedContactGraceMs: 90,
+  slopeSlideMinOverlapRatio: 0.55,
   slopeSlideAcceleration: 0.42,
   slopeMaxSlideSpeed: 9,
 } as const;
