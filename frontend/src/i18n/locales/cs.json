@@ -19,9 +19,6 @@
     "description": "Zvol věž, na kterou se chceš vyšplhat.",
     "selectMap": "Vybrat mapu"
   },
-  "maps": {
-    "bata-tower": "Baťa Tower"
-  },
   "finish": {
     "eyebrow": "Cíl dosažen",
     "title": "Dosáhl jsi zlatých střevíců",

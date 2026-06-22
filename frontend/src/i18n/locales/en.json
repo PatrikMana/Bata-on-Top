@@ -19,9 +19,6 @@
     "description": "Pick the tower you want to climb.",
     "selectMap": "Select map"
   },
-  "maps": {
-    "bata-tower": "Baťa Tower"
-  },
   "finish": {
     "eyebrow": "Goal reached",
     "title": "You reach your golden pumps",

@@ -83,7 +83,7 @@ export function StartScreen({
                   *
                 </span>
 
-                <h2>{t(`maps.${map.id}`, { defaultValue: map.name })}</h2>
+                <h2>{map.name}</h2>
 
                 <button
                   type="button"

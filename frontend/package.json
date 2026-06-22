@@ -4,8 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/generateAvailableMaps.mjs",
     "dev": "vite",
+    "prebuild": "node scripts/generateAvailableMaps.mjs",
     "build": "tsc -b && vite build",
+    "prepreview": "node scripts/generateAvailableMaps.mjs",
     "lint": "eslint .",
     "preview": "vite preview"
   },

@@ -582,6 +582,17 @@
       "height": 40,
       "rotation": 0,
       "previewTilePath": "row-1-column-1.png"
+    },
+    {
+      "id": "block-22-16",
+      "type": "finish",
+      "assetId": "brick-frozen",
+      "x": 900,
+      "y": 660,
+      "width": 40,
+      "height": 40,
+      "rotation": 0,
+      "previewTilePath": "row-1-column-2.png"
     }
   ]
 }
