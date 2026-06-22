@@ -57,6 +57,7 @@
     "typeNormal": "normal",
     "typeIce": "ice",
     "typeSlope": "sikmý",
+    "typeFinish": "finish",
     "moveTitle": "Posunout",
     "moveUp": "Nahoru",
     "moveLeft": "Vlevo",

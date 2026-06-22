@@ -24,7 +24,8 @@
   },
   "finish": {
     "eyebrow": "Goal reached",
-    "title": "You found the golden heels!",
+    "title": "You reach your golden pumps",
+    "timeLabel": "Your time",
     "playAgain": "Play again"
   },
   "leaderboard": {

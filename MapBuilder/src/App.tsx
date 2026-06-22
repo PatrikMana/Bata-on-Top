@@ -22,7 +22,7 @@ const MAX_GRID_ROWS = 48;
 
 type Screen = 'menu' | 'create' | 'edit' | 'editor';
 type EditorTool = 'draw' | 'select';
-type ObstacleType = 'normal' | 'ice' | 'slope';
+type ObstacleType = 'normal' | 'ice' | 'slope' | 'finish';
 
 type BuilderMap = {
   id: string;
@@ -44,7 +44,7 @@ type AssetTile = {
 
 type ObstacleDefinition = {
   id: string;
-  type: ObstacleType | 'finish' | 'danger';
+  type: ObstacleType | 'danger';
   assetId: string;
   x: number;
   y: number;
@@ -860,6 +860,10 @@ function App() {
   }
 
   function getObstacleTypeLabel(type: ObstacleType) {
+    if (type === 'finish') {
+      return t('editor.typeFinish');
+    }
+
     if (type === 'slope') {
       return t('editor.typeSlope');
     }
@@ -1089,7 +1093,7 @@ function App() {
             <section className="tool-group">
               <h2>{t('editor.typeTitle')}</h2>
               <div className="type-grid">
-                {(['normal', 'ice', 'slope'] as const).map((type) => (
+                {(['normal', 'ice', 'slope', 'finish'] as const).map((type) => (
                   <button
                     key={type}
                     type="button"

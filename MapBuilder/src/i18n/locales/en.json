@@ -57,6 +57,7 @@
     "typeNormal": "normal",
     "typeIce": "ice",
     "typeSlope": "slope",
+    "typeFinish": "finish",
     "moveTitle": "Move",
     "moveUp": "Up",
     "moveLeft": "Left",

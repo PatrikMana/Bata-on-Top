@@ -13,6 +13,7 @@ export class GameScene extends Phaser.Scene {
   private mapData?: LoadedMapData;
   private player?: Player;
   private sectionTransitionInProgress = false;
+  private isFinished = false;
   private readonly sectionLoadPromises = new Map<number, Promise<boolean>>();
 
   constructor() {
@@ -56,7 +57,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number) {
-    if (!this.player || !this.mapData) {
+    if (!this.player || !this.mapData || this.isFinished) {
       return;
     }
 
@@ -78,6 +79,11 @@ export class GameScene extends Phaser.Scene {
 
       const obstacleBody = playerBody === pair.bodyA ? pair.bodyB : pair.bodyA;
       const obstacleType = this.getObstacleTypeFromBody(obstacleBody);
+
+      if (obstacleType === 'finish') {
+        this.finishRun();
+        return;
+      }
 
       if (obstacleType) {
         this.player.recordObstacleContact(obstacleType, obstacleBody);
@@ -266,6 +272,18 @@ export class GameScene extends Phaser.Scene {
     for (const sectionIndex of adjacentSections) {
       await this.ensureSectionLoaded(sectionIndex);
     }
+  }
+
+  private finishRun() {
+    if (this.isFinished) {
+      return;
+    }
+
+    this.isFinished = true;
+    this.player?.gameObject.setVelocity(0, 0);
+
+    const onFinish = this.registry.get('onFinish') as (() => void) | undefined;
+    onFinish?.();
   }
 
   private handleShutdown() {

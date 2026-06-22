@@ -24,7 +24,8 @@
   },
   "finish": {
     "eyebrow": "Cíl dosažen",
-    "title": "Našel jsi zlaté střevíce!",
+    "title": "Dosáhl jsi zlatých střevíců",
+    "timeLabel": "Tvůj čas",
     "playAgain": "Hrát znovu"
   },
   "leaderboard": {

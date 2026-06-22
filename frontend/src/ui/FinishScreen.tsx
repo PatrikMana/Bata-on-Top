@@ -8,7 +8,7 @@ type FinishScreenProps = {
   timeMs: number;
   menuKeysEnabled?: boolean;
   onLeaveLanguageMenu?: () => void;
-  onRestart: () => void;
+  onBackToMenu: () => void;
   onShowLeaderboard: () => void;
 };
 
@@ -17,17 +17,17 @@ export function FinishScreen({
   timeMs,
   menuKeysEnabled = true,
   onLeaveLanguageMenu,
-  onRestart,
+  onBackToMenu,
   onShowLeaderboard,
 }: FinishScreenProps) {
   const { t } = useTranslation();
 
   const menuItems = useMemo(
     () => [
-      { id: 'restart', onActivate: onRestart },
+      { id: 'menu', onActivate: onBackToMenu },
       { id: 'leaderboard', onActivate: onShowLeaderboard },
     ],
-    [onRestart, onShowLeaderboard],
+    [onBackToMenu, onShowLeaderboard],
   );
 
   const { isFocused } = useMenuKeys({
@@ -45,15 +45,16 @@ export function FinishScreen({
         <h1>{t('finish.title')}</h1>
 
         <p className="result-name">{playerName}</p>
+        <p className="result-label">{t('finish.timeLabel')}</p>
         <p className="result-time">{formatTimeMs(timeMs)}</p>
 
         <div className="button-row">
           <button
             type="button"
             className={getMenuItemClassName('pixel-button primary-button', isFocused(0))}
-            onClick={onRestart}
+            onClick={onBackToMenu}
           >
-            {t('finish.playAgain')}
+            {t('common.backToMenu')}
           </button>
 
           <button

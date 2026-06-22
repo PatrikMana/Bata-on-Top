@@ -3,7 +3,11 @@ import { BootScene } from './scenes/BootScene';
 import { GameScene } from './scenes/GameScene';
 import { PreloadScene } from './scenes/PreloadScene';
 
-export function createGameConfig(parent: HTMLElement, mapId: string): Phaser.Types.Core.GameConfig {
+export function createGameConfig(
+  parent: HTMLElement,
+  mapId: string,
+  onFinish: () => void,
+): Phaser.Types.Core.GameConfig {
   return {
     type: Phaser.AUTO,
     parent,
@@ -25,6 +29,7 @@ export function createGameConfig(parent: HTMLElement, mapId: string): Phaser.Typ
     callbacks: {
       postBoot(game) {
         game.registry.set('selectedMapId', mapId);
+        game.registry.set('onFinish', onFinish);
       },
     },
   };

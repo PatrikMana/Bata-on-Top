@@ -176,6 +176,20 @@ function App() {
     void loadLeaderboard();
   }
 
+  function handleGameFinish() {
+    if (screen !== 'playing' || startTimeMs === null) {
+      return;
+    }
+
+    const finishedElapsedMs = Date.now() - startTimeMs - totalPausedMs;
+
+    setElapsedMs(finishedElapsedMs);
+    setFinalTimeMs(finishedElapsedMs);
+    setPauseStartedAtMs(null);
+    setStartTimeMs(null);
+    setScreen('finish');
+  }
+
   function handleRestart() {
     setElapsedMs(0);
     setFinalTimeMs(0);
@@ -231,6 +245,7 @@ function App() {
             key={`${selectedMap.id}-${runInstanceId}`}
             isPaused={isRunPaused}
             mapId={selectedMap.id}
+            onFinish={handleGameFinish}
           />
         </div>
 
@@ -252,7 +267,7 @@ function App() {
         timeMs={finalTimeMs}
         menuKeysEnabled={contentMenuKeysEnabled}
         onLeaveLanguageMenu={() => setKeyboardRegion('language')}
-        onRestart={handleRestart}
+        onBackToMenu={handleRestart}
         onShowLeaderboard={handleShowLeaderboard}
       />
     );
