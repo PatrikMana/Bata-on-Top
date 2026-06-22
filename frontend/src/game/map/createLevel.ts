@@ -711,12 +711,34 @@ function getAlphaColliderVertices(
   return colliderVertices;
 }
 
-function getSlopeDirection(obstacle: ObstacleDefinition) {
-  const previewTilePath = obstacle.previewTilePath?.toLowerCase() ?? '';
-  const isFlippedVertically = previewTilePath.includes('naopak');
-  const leansLeft = previewTilePath.includes('levo');
+function getSlopeDirectionFromBody(body: MatterJS.BodyType) {
+  const vertices = body.vertices ?? [];
+  const slopedEdge = vertices
+    .map((vertex, index) => {
+      const nextVertex = vertices[(index + 1) % vertices.length];
+      const deltaX = nextVertex.x - vertex.x;
+      const deltaY = nextVertex.y - vertex.y;
 
-  return leansLeft === isFlippedVertically ? 1 : -1;
+      return {
+        start: vertex,
+        end: nextVertex,
+        deltaX,
+        deltaY,
+      };
+    })
+    .filter((edge) => Math.abs(edge.deltaX) > 1 && Math.abs(edge.deltaY) > 1)
+    .sort((a, b) => Math.abs(b.deltaX) - Math.abs(a.deltaX))[0];
+
+  if (!slopedEdge) {
+    return 1;
+  }
+
+  const lowerPoint =
+    slopedEdge.start.y > slopedEdge.end.y ? slopedEdge.start : slopedEdge.end;
+  const upperPoint =
+    lowerPoint === slopedEdge.start ? slopedEdge.end : slopedEdge.start;
+
+  return Math.sign(lowerPoint.x - upperPoint.x) || 1;
 }
 
 function createSlopeObstacle(
@@ -750,18 +772,21 @@ function createSlopeObstacle(
     .setRotation(rotationRad)
     .setDepth(5);
 
-  image.setData('matterBody', matterBody);
-  image.setData('slopeDirection', getSlopeDirection(obstacle));
-  matterBody.plugin = {
-    ...matterBody.plugin,
-    slopeDirection: getSlopeDirection(obstacle),
-    standableSlope: hasHorizontalSlopeSupport(obstacle, sectionObstacles),
-  };
   matterBody.label = `obstacle:${obstacle.type}:${obstacle.id}`;
 
   if (rotationRad !== 0) {
     scene.matter.body.rotate(matterBody, rotationRad);
   }
+
+  const slopeDirection = getSlopeDirectionFromBody(matterBody);
+
+  image.setData('matterBody', matterBody);
+  image.setData('slopeDirection', slopeDirection);
+  matterBody.plugin = {
+    ...matterBody.plugin,
+    slopeDirection,
+    standableSlope: hasHorizontalSlopeSupport(obstacle, sectionObstacles),
+  };
 
   markObstacleObject(image, obstacle, isHookable);
 
