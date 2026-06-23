@@ -105,4 +105,90 @@ class RunApiTest extends TestCase
             'status' => Run::STATUS_ACTIVE,
         ]);
     }
+
+    public function test_better_time_replaces_previous_leaderboard_run_for_same_player_and_map(): void
+    {
+        $firstRun = $this->postJson('/api/runs/start', [
+            'playerName' => 'Patrik',
+            'mapName' => 'Bata Tower',
+        ]);
+
+        $this->travel(10)->seconds();
+
+        $this->postJson('/api/runs/finish', [
+            'runId' => $firstRun->json('runId'),
+            'runToken' => $firstRun->json('runToken'),
+        ])->assertOk()->assertJsonPath('personalBest', true);
+
+        $secondRun = $this->postJson('/api/runs/start', [
+            'playerName' => 'Patrik',
+            'mapName' => 'Bata Tower',
+        ]);
+
+        $this->travel(6)->seconds();
+
+        $finishResponse = $this->postJson('/api/runs/finish', [
+            'runId' => $secondRun->json('runId'),
+            'runToken' => $secondRun->json('runToken'),
+        ]);
+
+        $finishResponse
+            ->assertOk()
+            ->assertJsonPath('personalBest', true)
+            ->assertJsonPath('leaderboardRunId', $secondRun->json('runId'));
+
+        $this->assertDatabaseCount('runs', 1);
+        $this->assertDatabaseMissing('runs', [
+            'id' => $firstRun->json('runId'),
+        ]);
+        $this->assertDatabaseHas('runs', [
+            'id' => $secondRun->json('runId'),
+            'player_name' => 'Patrik',
+            'map_name' => 'Bata Tower',
+            'status' => Run::STATUS_FINISHED,
+        ]);
+    }
+
+    public function test_slower_time_is_not_saved_for_same_player_and_map(): void
+    {
+        $firstRun = $this->postJson('/api/runs/start', [
+            'playerName' => 'Patrik',
+            'mapName' => 'Bata Tower',
+        ]);
+
+        $this->travel(6)->seconds();
+
+        $this->postJson('/api/runs/finish', [
+            'runId' => $firstRun->json('runId'),
+            'runToken' => $firstRun->json('runToken'),
+        ])->assertOk()->assertJsonPath('personalBest', true);
+
+        $secondRun = $this->postJson('/api/runs/start', [
+            'playerName' => 'Patrik',
+            'mapName' => 'Bata Tower',
+        ]);
+
+        $this->travel(10)->seconds();
+
+        $finishResponse = $this->postJson('/api/runs/finish', [
+            'runId' => $secondRun->json('runId'),
+            'runToken' => $secondRun->json('runToken'),
+        ]);
+
+        $finishResponse
+            ->assertOk()
+            ->assertJsonPath('personalBest', false)
+            ->assertJsonPath('leaderboardRunId', $firstRun->json('runId'));
+
+        $this->assertDatabaseCount('runs', 1);
+        $this->assertDatabaseHas('runs', [
+            'id' => $firstRun->json('runId'),
+            'player_name' => 'Patrik',
+            'map_name' => 'Bata Tower',
+            'status' => Run::STATUS_FINISHED,
+        ]);
+        $this->assertDatabaseMissing('runs', [
+            'id' => $secondRun->json('runId'),
+        ]);
+    }
 }

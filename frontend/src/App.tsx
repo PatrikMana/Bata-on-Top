@@ -58,6 +58,7 @@ function App() {
   const keyboardRegion = keyboardRegions[keyboardRegionKey] ?? 'content';
   const contentMenuKeysEnabled = keyboardRegion === 'content' && !pendingMap;
   const languageMenuKeysEnabled = showLanguageSwitcher && keyboardRegion === 'language' && !pendingMap;
+  const runStartRequestIdRef = useRef(0);
 
   function setKeyboardRegion(region: KeyboardRegion) {
     setKeyboardRegions((currentRegions) => ({
@@ -156,18 +157,40 @@ function App() {
     setStartTimeMs(Date.now());
   }
 
-  async function startMap(map: AvailableMap, runPlayerName = playerName) {
-    const run = await startRun({
-      playerName: runPlayerName,
-      mapName: map.name,
-    });
-
-    setActiveRun(run);
+  function startMap(map: AvailableMap, runPlayerName = playerName) {
+    const runStartRequestId = runStartRequestIdRef.current + 1;
+    runStartRequestIdRef.current = runStartRequestId;
+    activeRunRef.current = null;
+    setActiveRun(null);
     isFinishingRunRef.current = false;
     setSelectedMap(map);
     setRunInstanceId((currentId) => currentId + 1);
     resetRunClock();
     setScreen('playing');
+
+    void startRun({
+      playerName: runPlayerName,
+      mapName: map.name,
+    })
+      .then((run) => {
+        if (
+          runStartRequestIdRef.current !== runStartRequestId ||
+          isFinishingRunRef.current
+        ) {
+          return;
+        }
+
+        activeRunRef.current = run;
+        setActiveRun(run);
+      })
+      .catch(() => {
+        if (runStartRequestIdRef.current !== runStartRequestId) {
+          return;
+        }
+
+        activeRunRef.current = null;
+        setActiveRun(null);
+      });
   }
 
   function handleSelectMap(map: AvailableMap) {
@@ -216,6 +239,7 @@ function App() {
   }
 
   async function abortActiveRun() {
+    runStartRequestIdRef.current += 1;
     const run = activeRunRef.current;
 
     if (!run) {

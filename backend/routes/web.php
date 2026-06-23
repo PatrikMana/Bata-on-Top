@@ -2,9 +2,4 @@
 
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return response()->json([
-        'status' => 'ok',
-        'app' => 'Bata on Top API',
-    ]);
-});
+Route::view('/{path?}', 'app')->where('path', '^(?!api).*$');

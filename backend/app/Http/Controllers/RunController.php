@@ -76,10 +76,40 @@ class RunController extends Controller
     {
         $this->deleteExpiredActiveRuns();
 
-        $run = DB::transaction(function () use ($request) {
+        $finishedRun = DB::transaction(function () use ($request) {
             $run = $this->findActiveRunForRequest($request, lockForUpdate: true);
             $finishedAt = now();
             $timeMs = max(0, $run->started_at->diffInMilliseconds($finishedAt));
+
+            $existingRuns = Run::query()
+                ->finished()
+                ->where('player_name', $run->player_name)
+                ->where('map_name', $run->map_name)
+                ->orderBy('time_ms')
+                ->orderBy('finished_at')
+                ->lockForUpdate()
+                ->get();
+
+            $bestExistingRun = $existingRuns->first();
+
+            if ($bestExistingRun && $bestExistingRun->time_ms <= $timeMs) {
+                $run->delete();
+
+                $existingRuns
+                    ->slice(1)
+                    ->each(fn (Run $existingRun) => $existingRun->delete());
+
+                return [
+                    'runId' => $run->id,
+                    'status' => 'FINISHED',
+                    'timeMs' => $timeMs,
+                    'finishedAt' => $finishedAt,
+                    'personalBest' => false,
+                    'leaderboardRunId' => $bestExistingRun->id,
+                ];
+            }
+
+            $existingRuns->each(fn (Run $existingRun) => $existingRun->delete());
 
             $run->forceFill([
                 'status' => Run::STATUS_FINISHED,
@@ -89,14 +119,23 @@ class RunController extends Controller
                 'run_token_hash' => null,
             ])->save();
 
-            return $run;
+            return [
+                'runId' => $run->id,
+                'status' => 'FINISHED',
+                'timeMs' => $run->time_ms,
+                'finishedAt' => $run->finished_at,
+                'personalBest' => true,
+                'leaderboardRunId' => $run->id,
+            ];
         });
 
         return response()->json([
-            'runId' => $run->id,
-            'status' => 'FINISHED',
-            'timeMs' => $run->time_ms,
-            'finishedAt' => $run->finished_at?->toISOString(),
+            'runId' => $finishedRun['runId'],
+            'status' => $finishedRun['status'],
+            'timeMs' => $finishedRun['timeMs'],
+            'finishedAt' => $finishedRun['finishedAt']->toISOString(),
+            'personalBest' => $finishedRun['personalBest'],
+            'leaderboardRunId' => $finishedRun['leaderboardRunId'],
         ]);
     }
 
