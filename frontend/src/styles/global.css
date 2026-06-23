@@ -269,8 +269,15 @@ h1 {
 
 .map-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 340px));
+  grid-template-columns: repeat(2, minmax(0, 340px));
+  justify-content: center;
   gap: 28px;
+}
+
+.map-grid > :last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+  justify-self: center;
+  width: min(100%, 340px);
 }
 
 .map-card {
@@ -326,10 +333,16 @@ h1 {
 }
 
 .leaderboard-map-tabs {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   margin: 0 0 24px;
+}
+
+.leaderboard-map-tabs > :last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+  justify-self: center;
+  width: min(100%, 340px);
 }
 
 .leaderboard-map-tab {
@@ -529,6 +542,17 @@ h1 {
   }
 
   .map-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .map-grid > :last-child:nth-child(odd),
+  .leaderboard-map-tabs > :last-child:nth-child(odd) {
+    grid-column: auto;
+    justify-self: stretch;
+    width: auto;
+  }
+
+  .leaderboard-map-tabs {
     grid-template-columns: 1fr;
   }
 
