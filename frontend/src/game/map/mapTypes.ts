@@ -1,3 +1,4 @@
+import type Matter from 'matter-js';
 import type { AvailableMap } from './availableMaps';
 
 export type ObstacleType = 'normal' | 'ice' | 'slope' | 'finish' | 'danger';
@@ -39,6 +40,7 @@ export type CreatedLevelObstacle = {
   worldX: number;
   worldY: number;
   isHookable: boolean;
+  body: Matter.Body;
   gameObject: Phaser.GameObjects.GameObject;
 };
 
@@ -47,4 +49,5 @@ export type CreatedLevel = {
   background: Phaser.GameObjects.Image;
   map: LoadedMapData;
   obstacles: CreatedLevelObstacle[];
+  physicsBodies: Matter.Body[];
 };

@@ -1,10 +1,16 @@
 import Phaser from 'phaser';
+import Matter from 'matter-js';
 import i18n from '../../i18n/i18n';
 import { PLAYER_CONFIG } from '../gameplayConfig';
 import { AVAILABLE_MAPS } from '../map/availableMaps';
-import { createLevel, destroyLevel, preloadMapAssets } from '../map/createLevel';
+import {
+  createLevel,
+  destroyLevel,
+  getObstaclePhysicsData,
+  preloadMapAssets,
+} from '../map/createLevel';
 import { loadMapData, loadMapSection } from '../map/loadMapData';
-import type { CreatedLevel, LoadedMapData, LoadedMapSection, ObstacleType } from '../map/mapTypes';
+import type { CreatedLevel, LoadedMapData, LoadedMapSection } from '../map/mapTypes';
 import { Player } from '../objects/Player';
 
 export class GameScene extends Phaser.Scene {
@@ -12,6 +18,8 @@ export class GameScene extends Phaser.Scene {
   private level?: CreatedLevel;
   private mapData?: LoadedMapData;
   private player?: Player;
+  private engine?: Matter.Engine;
+  private physicsAccumulatorMs = 0;
   private sectionTransitionInProgress = false;
   private isFinished = false;
   private readonly sectionLoadPromises = new Map<number, Promise<boolean>>();
@@ -26,21 +34,33 @@ export class GameScene extends Phaser.Scene {
       AVAILABLE_MAPS.find((map) => map.id === selectedMapId) ?? AVAILABLE_MAPS[0];
 
     try {
+      this.engine = Matter.Engine.create({
+        enableSleeping: false,
+        positionIterations: 8,
+        velocityIterations: 6,
+        constraintIterations: 2,
+        gravity: {
+          x: 0,
+          y: 1,
+          scale: 0.001,
+        },
+      });
       const mapData = await loadMapData(selectedMap);
       await preloadMapAssets(this, mapData);
 
       this.mapData = mapData;
       this.activeSectionIndex = 0;
-      this.level = createLevel(this, mapData, this.activeSectionIndex);
+      this.level = createLevel(this, this.engine, mapData, this.activeSectionIndex);
       this.player = new Player(
         this,
+        this.engine.world,
         PLAYER_CONFIG.spawnX,
         mapData.definition.sectionHeight - PLAYER_CONFIG.groundOffset - PLAYER_CONFIG.height / 2,
       );
       void this.prefetchAdjacentSections();
 
-      this.matter.world.on('collisionstart', this.handleCollisionActive, this);
-      this.matter.world.on('collisionactive', this.handleCollisionActive, this);
+      Matter.Events.on(this.engine, 'collisionStart', this.handleCollisionStart);
+      Matter.Events.on(this.engine, 'collisionActive', this.handleCollisionActive);
       this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.handleShutdown, this);
     } catch {
       const message = i18n.t('errors.mapLoadFailed');
@@ -57,66 +77,64 @@ export class GameScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number) {
-    if (!this.player || !this.mapData || this.isFinished) {
+    if (!this.player || !this.mapData || !this.engine || this.isFinished) {
       return;
     }
 
-    this.player.update(delta, this.mapData.definition.sectionWidth);
+    const fixedStepMs = PLAYER_CONFIG.fixedPhysicsStepMs;
+    const maxAccumulatedMs = fixedStepMs * PLAYER_CONFIG.maxPhysicsStepsPerFrame;
+
+    this.physicsAccumulatorMs = Math.min(
+      this.physicsAccumulatorMs + Math.min(delta, maxAccumulatedMs),
+      maxAccumulatedMs,
+    );
+
+    while (this.physicsAccumulatorMs >= fixedStepMs && !this.isFinished) {
+      this.player.preparePhysicsStep(fixedStepMs);
+      Matter.Engine.update(this.engine, fixedStepMs);
+      this.player.finishPhysicsStep(fixedStepMs);
+      this.physicsAccumulatorMs -= fixedStepMs;
+    }
+
+    this.player.updateVisual();
     this.handleSectionTransition();
   }
 
-  private handleCollisionActive(event: Phaser.Physics.Matter.Events.CollisionStartEvent) {
-    if (!this.player) {
+  private readonly handleCollisionStart = (event: Matter.IEventCollision<Matter.Engine>) => {
+    this.handleCollisionEvent(event, true);
+  };
+
+  private readonly handleCollisionActive = (event: Matter.IEventCollision<Matter.Engine>) => {
+    this.handleCollisionEvent(event, false);
+  };
+
+  private handleCollisionEvent(
+    event: Matter.IEventCollision<Matter.Engine>,
+    started: boolean,
+  ) {
+    if (!this.player || this.isFinished) {
       return;
     }
 
     for (const pair of event.pairs) {
-      const playerBody = this.getPlayerBodyFromPair(pair);
+      const collision = pair.collision;
+      const playerIsBodyA = collision.parentA === this.player.body;
+      const playerIsBodyB = collision.parentB === this.player.body;
 
-      if (!playerBody) {
+      if (!playerIsBodyA && !playerIsBodyB) {
         continue;
       }
 
-      const obstacleBody = playerBody === pair.bodyA ? pair.bodyB : pair.bodyA;
-      const obstacleType = this.getObstacleTypeFromBody(obstacleBody);
+      const obstacleBody = playerIsBodyA ? collision.parentB : collision.parentA;
+      const obstacle = getObstaclePhysicsData(obstacleBody);
 
-      if (obstacleType === 'finish') {
+      if (obstacle?.obstacleType === 'finish') {
         this.finishRun();
         return;
       }
 
-      if (obstacleType) {
-        this.player.recordObstacleContact(obstacleType, obstacleBody);
-      }
+      this.player.recordContact(pair, started);
     }
-  }
-
-  private getPlayerBodyFromPair(pair: Phaser.Types.Physics.Matter.MatterCollisionPair) {
-    if (pair.bodyA.label === 'player') {
-      return pair.bodyA;
-    }
-
-    if (pair.bodyB.label === 'player') {
-      return pair.bodyB;
-    }
-
-    return null;
-  }
-
-  private getObstacleTypeFromBody(body: MatterJS.BodyType): ObstacleType | null {
-    const [, obstacleType] = body.label.split(':');
-
-    if (
-      obstacleType === 'normal' ||
-      obstacleType === 'ice' ||
-      obstacleType === 'slope' ||
-      obstacleType === 'finish' ||
-      obstacleType === 'danger'
-    ) {
-      return obstacleType;
-    }
-
-    return null;
   }
 
   private handleSectionTransition() {
@@ -126,9 +144,9 @@ export class GameScene extends Phaser.Scene {
 
     const sectionHeight = this.mapData.definition.sectionHeight;
     const halfPlayerHeight = PLAYER_CONFIG.height / 2;
-    const playerY = this.player.gameObject.y;
+    const playerY = this.player.y;
     const transitionSnapshot = {
-      x: this.player.gameObject.x,
+      x: this.player.x,
       velocity: this.player.getVelocity(),
     };
 
@@ -155,7 +173,7 @@ export class GameScene extends Phaser.Scene {
     nextPlayerY: number,
     snapshot: { x: number; velocity: { x: number; y: number } },
   ) {
-    if (!this.player || !this.mapData || !this.level) {
+    if (!this.player || !this.mapData || !this.level || !this.engine) {
       return;
     }
 
@@ -183,7 +201,7 @@ export class GameScene extends Phaser.Scene {
     nextPlayerY: number,
     snapshot: { x: number; velocity: { x: number; y: number } },
   ) {
-    if (!this.player || !this.mapData || !this.level) {
+    if (!this.player || !this.mapData || !this.level || !this.engine) {
       return;
     }
 
@@ -193,9 +211,9 @@ export class GameScene extends Phaser.Scene {
       this.mapData.definition.sectionWidth - PLAYER_CONFIG.width / 2,
     );
 
-    destroyLevel(this, this.level);
+    destroyLevel(this.engine, this.level);
     this.activeSectionIndex = nextSectionIndex;
-    this.level = createLevel(this, this.mapData, this.activeSectionIndex);
+    this.level = createLevel(this, this.engine, this.mapData, this.activeSectionIndex);
     this.player.setPositionAndVelocity(nextPlayerX, nextPlayerY, snapshot.velocity);
     void this.prefetchAdjacentSections();
   }
@@ -280,21 +298,28 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.isFinished = true;
-    this.player?.gameObject.setVelocity(0, 0);
+    this.player?.stop();
 
     const onFinish = this.registry.get('onFinish') as (() => void) | undefined;
     onFinish?.();
   }
 
   private handleShutdown() {
-    this.matter.world.off('collisionstart', this.handleCollisionActive, this);
-    this.matter.world.off('collisionactive', this.handleCollisionActive, this);
-    this.player?.destroy();
+    if (!this.engine) {
+      return;
+    }
+
+    Matter.Events.off(this.engine, 'collisionStart', this.handleCollisionStart);
+    Matter.Events.off(this.engine, 'collisionActive', this.handleCollisionActive);
+    this.player?.destroy(this.engine.world);
     this.player = undefined;
 
     if (this.level) {
-      destroyLevel(this, this.level);
+      destroyLevel(this.engine, this.level);
       this.level = undefined;
     }
+
+    Matter.Engine.clear(this.engine);
+    this.engine = undefined;
   }
 }

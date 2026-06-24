@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import Matter from 'matter-js';
 import { getMapAssetFileUrl, getMapAssetTileUrl, getMapAssetUrl } from './loadMapData';
 import type {
   CreatedLevel,
@@ -17,11 +18,61 @@ const TILESET_COLUMNS = 3;
 const ADJACENCY_EPSILON = 2;
 const COLLIDER_ALPHA_THRESHOLD = 16;
 const alphaColliderVerticesCache = new Map<string, ColliderPoint[]>();
+const WORLD_BOUNDARY_THICKNESS = 64;
+
+export type ObstaclePhysicsData = {
+  obstacleId: string;
+  obstacleType: ObstacleType;
+  slopeDownhill?: Matter.Vector;
+  standableSlope?: boolean;
+};
 
 type ColliderPoint = {
   x: number;
   y: number;
 };
+
+function setObstaclePhysicsData(
+  body: Matter.Body,
+  data: ObstaclePhysicsData,
+) {
+  body.plugin = {
+    ...body.plugin,
+    bataOnTop: data,
+  };
+}
+
+export function getObstaclePhysicsData(body: Matter.Body) {
+  return body.plugin?.bataOnTop as ObstaclePhysicsData | undefined;
+}
+
+function createStaticBodyOptions(
+  obstacleType: ObstacleType,
+  obstacleId: string,
+): Matter.IChamferableBodyDefinition {
+  return {
+    isStatic: true,
+    isSensor: obstacleType === 'finish',
+    label: `obstacle:${obstacleType}:${obstacleId}`,
+    friction: 0,
+    frictionStatic: 0,
+    restitution: 0,
+    slop: 0.02,
+  };
+}
+
+function attachObstaclePhysicsData(
+  body: Matter.Body,
+  obstacleType: ObstacleType,
+  obstacleId: string,
+) {
+  setObstaclePhysicsData(body, {
+    obstacleId,
+    obstacleType,
+  });
+
+  return body;
+}
 
 function cloneColliderPoints(points: ColliderPoint[]) {
   return points.map((point) => ({ x: point.x, y: point.y }));
@@ -392,12 +443,20 @@ function createTiledObstacle(
   }
 
   const rotationRad = Phaser.Math.DegToRad(obstacle.rotation);
-  const body = scene.matter.add.rectangle(worldX, worldY, obstacle.width, obstacle.height, {
-    isStatic: true,
-    isSensor: physicsType === 'finish',
-    label: `obstacle:${physicsType}:${obstacle.id}`,
-    angle: rotationRad,
-  });
+  const body = attachObstaclePhysicsData(
+    Matter.Bodies.rectangle(
+      worldX,
+      worldY,
+      obstacle.width,
+      obstacle.height,
+      {
+        ...createStaticBodyOptions(physicsType, obstacle.id),
+        angle: rotationRad,
+      },
+    ),
+    physicsType,
+    obstacle.id,
+  );
   const image = scene.add
     .image(worldX, worldY, textureKey)
     .setDisplaySize(obstacle.width, obstacle.height)
@@ -413,6 +472,7 @@ function createTiledObstacle(
     worldX,
     worldY,
     isHookable,
+    body,
     gameObject: image,
   } satisfies CreatedLevelObstacle;
 }
@@ -524,30 +584,28 @@ function createSingleTextureObstacle(
   physicsType: ObstacleType = obstacle.type,
 ) {
   const isHookable = HOOKABLE_OBSTACLE_TYPES.has(obstacle.type);
-  const image = scene.matter.add.image(worldX, worldY, textureKey, undefined, {
-    isStatic: true,
-    isSensor: physicsType === 'finish',
-    label: `obstacle:${physicsType}:${obstacle.id}`,
-  });
-
-  image
+  const rotationRad = Phaser.Math.DegToRad(obstacle.rotation);
+  const image = scene.add
+    .image(worldX, worldY, textureKey)
     .setDisplaySize(obstacle.width, obstacle.height)
-    .setRotation(Phaser.Math.DegToRad(obstacle.rotation));
-
-  image.setBody(
-    {
-      type: 'rectangle',
-      width: obstacle.width,
-      height: obstacle.height,
-    },
-    {
-      isStatic: true,
-      isSensor: physicsType === 'finish',
-      label: `obstacle:${physicsType}:${obstacle.id}`,
-    },
+    .setRotation(rotationRad)
+    .setDepth(5);
+  const body = attachObstaclePhysicsData(
+    Matter.Bodies.rectangle(
+      worldX,
+      worldY,
+      obstacle.width,
+      obstacle.height,
+      {
+        ...createStaticBodyOptions(physicsType, obstacle.id),
+        angle: rotationRad,
+      },
+    ),
+    physicsType,
+    obstacle.id,
   );
-  image.setRotation(Phaser.Math.DegToRad(obstacle.rotation));
 
+  image.setData('matterBody', body);
   markObstacleObject(image, obstacle, isHookable);
 
   return {
@@ -556,6 +614,7 @@ function createSingleTextureObstacle(
     worldX,
     worldY,
     isHookable,
+    body,
     gameObject: image,
   } satisfies CreatedLevelObstacle;
 }
@@ -585,14 +644,14 @@ function getFallbackSlopeColliderVertices(obstacle: ObstacleDefinition) {
 
   if (leansLeft) {
     return [
-      { x: 0, y: 0 },
+      { x: width, y: 0 },
       { x: width, y: height },
       { x: 0, y: height },
     ];
   }
 
   return [
-    { x: width, y: 0 },
+    { x: 0, y: 0 },
     { x: width, y: height },
     { x: 0, y: height },
   ];
@@ -704,7 +763,7 @@ function getAlphaColliderVertices(
   return colliderVertices;
 }
 
-function getSlopeDirectionFromBody(body: MatterJS.BodyType) {
+function getSlopeDownhillFromBody(body: Matter.Body): Matter.Vector {
   const vertices = body.vertices ?? [];
   const slopedEdge = vertices
     .map((vertex, index) => {
@@ -723,15 +782,21 @@ function getSlopeDirectionFromBody(body: MatterJS.BodyType) {
     .sort((a, b) => Math.abs(b.deltaX) - Math.abs(a.deltaX))[0];
 
   if (!slopedEdge) {
-    return 1;
+    return { x: 1, y: 0 };
   }
 
   const lowerPoint =
     slopedEdge.start.y > slopedEdge.end.y ? slopedEdge.start : slopedEdge.end;
   const upperPoint =
     lowerPoint === slopedEdge.start ? slopedEdge.end : slopedEdge.start;
+  const deltaX = lowerPoint.x - upperPoint.x;
+  const deltaY = lowerPoint.y - upperPoint.y;
+  const length = Math.hypot(deltaX, deltaY) || 1;
 
-  return Math.sign(lowerPoint.x - upperPoint.x) || 1;
+  return {
+    x: deltaX / length,
+    y: deltaY / length,
+  };
 }
 
 function createSlopeObstacle(
@@ -745,20 +810,36 @@ function createSlopeObstacle(
 ) {
   const isHookable = HOOKABLE_OBSTACLE_TYPES.has(obstacle.type);
   const rotationRad = Phaser.Math.DegToRad(obstacle.rotation);
-  const matterBody = scene.matter.add.fromVertices(
-    worldX,
-    worldY,
+  const matterBody = Matter.Bodies.fromVertices(
+    0,
+    0,
     [getAlphaColliderVertices(scene, textureKey, obstacle)],
-    {
-      isStatic: true,
-      friction: 0,
-      frictionStatic: 0,
-      label: `obstacle:${obstacle.type}:${obstacle.id}`,
-    },
+    createStaticBodyOptions(obstacle.type, obstacle.id),
     true,
     0.01,
     10,
-  ) as MatterJS.BodyType;
+  );
+  const targetMinX = worldX - obstacle.width / 2;
+  const targetMinY = worldY - obstacle.height / 2;
+
+  Matter.Body.translate(matterBody, {
+    x: targetMinX - matterBody.bounds.min.x,
+    y: targetMinY - matterBody.bounds.min.y,
+  });
+
+  if (rotationRad !== 0) {
+    const offsetX = matterBody.position.x - worldX;
+    const offsetY = matterBody.position.y - worldY;
+    const cos = Math.cos(rotationRad);
+    const sin = Math.sin(rotationRad);
+
+    Matter.Body.rotate(matterBody, rotationRad);
+    Matter.Body.setPosition(matterBody, {
+      x: worldX + offsetX * cos - offsetY * sin,
+      y: worldY + offsetX * sin + offsetY * cos,
+    });
+  }
+
   const image = scene.add
     .image(worldX, worldY, textureKey)
     .setDisplaySize(obstacle.width, obstacle.height)
@@ -766,20 +847,17 @@ function createSlopeObstacle(
     .setDepth(5);
 
   matterBody.label = `obstacle:${obstacle.type}:${obstacle.id}`;
-
-  if (rotationRad !== 0) {
-    scene.matter.body.rotate(matterBody, rotationRad);
-  }
-
-  const slopeDirection = getSlopeDirectionFromBody(matterBody);
+  const slopeDownhill = getSlopeDownhillFromBody(matterBody);
+  const standableSlope = hasHorizontalSlopeSupport(obstacle, sectionObstacles);
 
   image.setData('matterBody', matterBody);
-  image.setData('slopeDirection', slopeDirection);
-  matterBody.plugin = {
-    ...matterBody.plugin,
-    slopeDirection,
-    standableSlope: hasHorizontalSlopeSupport(obstacle, sectionObstacles),
-  };
+  image.setData('slopeDirection', Math.sign(slopeDownhill.x));
+  setObstaclePhysicsData(matterBody, {
+    obstacleId: obstacle.id,
+    obstacleType: obstacle.type,
+    slopeDownhill,
+    standableSlope,
+  });
 
   markObstacleObject(image, obstacle, isHookable);
 
@@ -789,6 +867,7 @@ function createSlopeObstacle(
     worldX,
     worldY,
     isHookable,
+    body: matterBody,
     gameObject: image,
   } satisfies CreatedLevelObstacle;
 }
@@ -805,10 +884,17 @@ function createSectionZeroGround(scene: Phaser.Scene, map: LoadedMapData) {
     rotation: 0,
   };
 
-  const body = scene.matter.add.rectangle(ground.x, ground.y, ground.width, ground.height, {
-    isStatic: true,
-    label: `obstacle:${ground.type}:${ground.id}`,
-  });
+  const body = attachObstaclePhysicsData(
+    Matter.Bodies.rectangle(
+      ground.x,
+      ground.y,
+      ground.width,
+      ground.height,
+      createStaticBodyOptions(ground.type, ground.id),
+    ),
+    ground.type,
+    ground.id,
+  );
   const zone = scene.add.zone(ground.x, ground.y, ground.width, ground.height);
 
   zone.setData('obstacleId', ground.id);
@@ -823,12 +909,38 @@ function createSectionZeroGround(scene: Phaser.Scene, map: LoadedMapData) {
     worldX: ground.x,
     worldY: ground.y,
     isHookable: true,
+    body,
     gameObject: zone,
   } satisfies CreatedLevelObstacle;
 }
 
+function createWorldBoundaries(map: LoadedMapData) {
+  const height = map.definition.sectionHeight + WORLD_BOUNDARY_THICKNESS * 2;
+  const centerY = map.definition.sectionHeight / 2;
+  const left = Matter.Bodies.rectangle(
+    -WORLD_BOUNDARY_THICKNESS / 2,
+    centerY,
+    WORLD_BOUNDARY_THICKNESS,
+    height,
+    createStaticBodyOptions('normal', 'world-left'),
+  );
+  const right = Matter.Bodies.rectangle(
+    map.definition.sectionWidth + WORLD_BOUNDARY_THICKNESS / 2,
+    centerY,
+    WORLD_BOUNDARY_THICKNESS,
+    height,
+    createStaticBodyOptions('normal', 'world-right'),
+  );
+
+  attachObstaclePhysicsData(left, 'normal', 'world-left');
+  attachObstaclePhysicsData(right, 'normal', 'world-right');
+
+  return [left, right];
+}
+
 export function createLevel(
   scene: Phaser.Scene,
+  engine: Matter.Engine,
   map: LoadedMapData,
   activeSectionIndex = 0,
 ): CreatedLevel {
@@ -837,18 +949,6 @@ export function createLevel(
     map.sections.find((section) => section.index === activeSectionIndex) ?? map.sections[0];
   const obstacles: CreatedLevelObstacle[] =
     activeSection.index === 0 ? [createSectionZeroGround(scene, map)] : [];
-
-  scene.matter.world.setBounds(
-    0,
-    0,
-    map.definition.sectionWidth,
-    map.definition.sectionHeight,
-    64,
-    true,
-    true,
-    false,
-    false,
-  );
   scene.cameras.main.setBounds(0, 0, map.definition.sectionWidth, map.definition.sectionHeight);
   scene.cameras.main.setScroll(0, 0);
 
@@ -882,24 +982,27 @@ export function createLevel(
     );
   }
 
+  const physicsBodies = [
+    ...createWorldBoundaries(map),
+    ...obstacles.map((obstacle) => obstacle.body),
+  ];
+
+  Matter.Composite.add(engine.world, physicsBodies);
+
   return {
     activeSectionIndex: activeSection.index,
     background,
     map,
     obstacles,
+    physicsBodies,
   };
 }
 
-export function destroyLevel(scene: Phaser.Scene, level: CreatedLevel) {
+export function destroyLevel(engine: Matter.Engine, level: CreatedLevel) {
   level.background.destroy();
+  Matter.Composite.remove(engine.world, level.physicsBodies, true);
 
   for (const obstacle of level.obstacles) {
-    const body = obstacle.gameObject.getData('matterBody') as MatterJS.BodyType | undefined;
-
-    if (body) {
-      scene.matter.world.remove(body);
-    }
-
     obstacle.gameObject.destroy();
   }
 }

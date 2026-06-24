@@ -27,7 +27,15 @@ export function PhaserGame({ isPaused, mapId, onFinish }: PhaserGameProps) {
     );
     gameRef.current = game;
 
+    if (import.meta.env.DEV) {
+      Object.assign(window, { __BATA_GAME__: game });
+    }
+
     return () => {
+      if (import.meta.env.DEV) {
+        Reflect.deleteProperty(window, '__BATA_GAME__');
+      }
+
       gameRef.current = null;
       game.destroy(true);
     };
