@@ -25,11 +25,20 @@ export type ObstaclePhysicsData = {
   obstacleType: ObstacleType;
   slopeDownhill?: Matter.Vector;
   standableSlope?: boolean;
+  slideSurfaceFacesUp?: boolean;
 };
 
 type ColliderPoint = {
   x: number;
   y: number;
+};
+
+type PlatformColliderRect = {
+  obstacleType: Extract<ObstacleType, 'normal' | 'ice'>;
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
 };
 
 function setObstaclePhysicsData(
@@ -857,6 +866,8 @@ function createSlopeObstacle(
     obstacleType: obstacle.type,
     slopeDownhill,
     standableSlope,
+    slideSurfaceFacesUp:
+      !(obstacle.previewTilePath?.toLowerCase().includes('naopak') ?? false),
   });
 
   markObstacleObject(image, obstacle, isHookable);
@@ -938,6 +949,132 @@ function createWorldBoundaries(map: LoadedMapData) {
   return [left, right];
 }
 
+function isSameHorizontalPlatformRow(
+  a: PlatformColliderRect,
+  b: PlatformColliderRect,
+) {
+  return (
+    a.obstacleType === b.obstacleType &&
+    Math.abs(a.minY - b.minY) <= ADJACENCY_EPSILON &&
+    Math.abs(a.maxY - b.maxY) <= ADJACENCY_EPSILON
+  );
+}
+
+function isSameVerticalPlatformColumn(
+  a: PlatformColliderRect,
+  b: PlatformColliderRect,
+) {
+  return (
+    a.obstacleType === b.obstacleType &&
+    Math.abs(a.minX - b.minX) <= ADJACENCY_EPSILON &&
+    Math.abs(a.maxX - b.maxX) <= ADJACENCY_EPSILON
+  );
+}
+
+function mergeHorizontalPlatformRects(rects: PlatformColliderRect[]) {
+  const sortedRects = [...rects].sort((a, b) => (
+    a.obstacleType.localeCompare(b.obstacleType) ||
+    a.minY - b.minY ||
+    a.maxY - b.maxY ||
+    a.minX - b.minX
+  ));
+  const merged: PlatformColliderRect[] = [];
+
+  for (const rect of sortedRects) {
+    const previous = merged[merged.length - 1];
+
+    if (
+      previous &&
+      isSameHorizontalPlatformRow(previous, rect) &&
+      rect.minX <= previous.maxX + ADJACENCY_EPSILON
+    ) {
+      previous.maxX = Math.max(previous.maxX, rect.maxX);
+      continue;
+    }
+
+    merged.push({ ...rect });
+  }
+
+  return merged;
+}
+
+function mergeVerticalPlatformRects(rects: PlatformColliderRect[]) {
+  const sortedRects = [...rects].sort((a, b) => (
+    a.obstacleType.localeCompare(b.obstacleType) ||
+    a.minX - b.minX ||
+    a.maxX - b.maxX ||
+    a.minY - b.minY
+  ));
+  const merged: PlatformColliderRect[] = [];
+
+  for (const rect of sortedRects) {
+    const previous = merged[merged.length - 1];
+
+    if (
+      previous &&
+      isSameVerticalPlatformColumn(previous, rect) &&
+      rect.minY <= previous.maxY + ADJACENCY_EPSILON
+    ) {
+      previous.maxY = Math.max(previous.maxY, rect.maxY);
+      continue;
+    }
+
+    merged.push({ ...rect });
+  }
+
+  return merged;
+}
+
+function createMergedPlatformBodies(obstacles: CreatedLevelObstacle[]) {
+  const mergeableObstacles = obstacles.filter((obstacle) => {
+    const physicsData = getObstaclePhysicsData(obstacle.body);
+
+    return (
+      obstacle.definition.rotation === 0 &&
+      (physicsData?.obstacleType === 'normal' || physicsData?.obstacleType === 'ice')
+    );
+  });
+  const mergeableSet = new Set(mergeableObstacles);
+  const platformRects = mergeableObstacles.map((obstacle) => {
+    const physicsData = getObstaclePhysicsData(obstacle.body);
+
+    return {
+      obstacleType: physicsData?.obstacleType as Extract<ObstacleType, 'normal' | 'ice'>,
+      minX: obstacle.body.bounds.min.x,
+      maxX: obstacle.body.bounds.max.x,
+      minY: obstacle.body.bounds.min.y,
+      maxY: obstacle.body.bounds.max.y,
+    };
+  });
+  const mergedRects = mergeVerticalPlatformRects(
+    mergeHorizontalPlatformRects(platformRects),
+  );
+  const mergedBodies = mergedRects.map((rect, index) => {
+    const width = rect.maxX - rect.minX;
+    const height = rect.maxY - rect.minY;
+    const obstacleId = `merged-${rect.obstacleType}-${index}`;
+
+    return attachObstaclePhysicsData(
+      Matter.Bodies.rectangle(
+        rect.minX + width / 2,
+        rect.minY + height / 2,
+        width,
+        height,
+        createStaticBodyOptions(rect.obstacleType, obstacleId),
+      ),
+      rect.obstacleType,
+      obstacleId,
+    );
+  });
+
+  return {
+    mergedBodies,
+    unmergedBodies: obstacles
+      .filter((obstacle) => !mergeableSet.has(obstacle))
+      .map((obstacle) => obstacle.body),
+  };
+}
+
 export function createLevel(
   scene: Phaser.Scene,
   engine: Matter.Engine,
@@ -982,9 +1119,11 @@ export function createLevel(
     );
   }
 
+  const { mergedBodies, unmergedBodies } = createMergedPlatformBodies(obstacles);
   const physicsBodies = [
     ...createWorldBoundaries(map),
-    ...obstacles.map((obstacle) => obstacle.body),
+    ...unmergedBodies,
+    ...mergedBodies,
   ];
 
   Matter.Composite.add(engine.world, physicsBodies);

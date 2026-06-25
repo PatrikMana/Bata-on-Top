@@ -71,21 +71,22 @@ export function getWallBounce(
   input: WallBounceInput,
 ): WallBounceResult | null {
   const { preStepVelocity, normal, moveDirection, wasGrounded } = input;
-  const isWallNormal =
+  const isDirectWallNormal =
     Math.abs(normal.x) >= PLAYER_CONFIG.wallContactNormalMin &&
     Math.abs(normal.x) > Math.abs(normal.y) * 1.2;
+  const isAscendingIntoTopCorner =
+    preStepVelocity.y < -0.75 &&
+    normal.y < 0 &&
+    Math.abs(normal.x) >= PLAYER_CONFIG.wallCornerContactNormalMin;
 
-  if (!isWallNormal) {
+  if (!isDirectWallNormal && !isAscendingIntoTopCorner) {
     return null;
   }
 
   const isHoldingIntoWall =
     moveDirection !== 0 &&
     moveDirection === -Math.sign(normal.x);
-  const approachSpeed = -(
-    preStepVelocity.x * normal.x +
-    preStepVelocity.y * normal.y
-  );
+  const approachSpeed = -(preStepVelocity.x * normal.x);
   const isAirImpact = !wasGrounded || Math.abs(preStepVelocity.y) > 0.75;
 
   if (
@@ -112,6 +113,17 @@ export function getWallBounce(
 
 export function canStandOnSupportedSlope(overlapRatio: number, isSupported: boolean) {
   return isSupported && overlapRatio < PLAYER_CONFIG.slopeSlideMinOverlapRatio;
+}
+
+export function isWallBounceCooldownBlocked(
+  elapsedMs: number,
+  lastNormalX: number,
+  nextNormalX: number,
+) {
+  return (
+    elapsedMs < PLAYER_CONFIG.wallBounceCooldownMs &&
+    Math.sign(lastNormalX) === Math.sign(nextNormalX)
+  );
 }
 
 export function isSlopeSurfaceContact(

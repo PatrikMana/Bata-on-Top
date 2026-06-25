@@ -13,6 +13,7 @@ import {
   getSlopeSlideVelocity,
   getWallBounce,
   isSlopeSurfaceContact,
+  isWallBounceCooldownBlocked,
 } from '../physics/movementPhysics';
 import {
   getIdleFrame,
@@ -32,6 +33,11 @@ type PhysicsContact = {
 
 type ActiveSlope = {
   downhill: Matter.Vector;
+};
+
+type SlopeSurface = {
+  obstacleBody: Matter.Body;
+  obstacle: ObstaclePhysicsData;
 };
 
 const PLAYER_FALLBACK_TEXTURE_KEY = 'player:fallback';
@@ -66,6 +72,7 @@ export class Player {
   private readonly jumpKey: Phaser.Input.Keyboard.Key;
   private readonly visual: Phaser.GameObjects.Sprite;
   private readonly contacts = new Map<string, PhysicsContact>();
+  private slopeBodies: Matter.Body[] = [];
   private groundType: GroundType | null = null;
   private activeSlope: ActiveSlope | null = null;
   private physicsTimeMs = 0;
@@ -73,10 +80,13 @@ export class Player {
   private lastSlopeContactAtMs = Number.NEGATIVE_INFINITY;
   private ignoreGroundUntilMs = 0;
   private lastWallBounceAtMs = Number.NEGATIVE_INFINITY;
+  private lastWallBounceNormalX = 0;
+  private wallBounceArmed = false;
+  private hadSupportContactLastStep = false;
+  private lastSupportVelocityX = 0;
   private preStepVelocity: Matter.Vector = { x: 0, y: 0 };
   private wasGroundedAtStepStart = false;
   private jumpChargeMs = 0;
-  private jumpChargeDirection: -1 | 0 | 1 = 0;
   private wasJumpDown = false;
   private isChargingJump = false;
   private facingDirection: -1 | 1 = 1;
@@ -147,7 +157,6 @@ export class Player {
     if (isSlopeSliding && this.activeSlope) {
       this.isChargingJump = false;
       this.jumpChargeMs = 0;
-      this.jumpChargeDirection = 0;
       this.applySlopeSlide(this.activeSlope, deltaMs);
     } else {
       this.applyGroundAndJumpInput(deltaMs, moveDirection, isJumpDown);
@@ -195,6 +204,7 @@ export class Player {
       this.groundType = null;
       this.activeSlope = null;
       this.lastGroundedAtMs = Number.NEGATIVE_INFINITY;
+      this.hadSupportContactLastStep = false;
       this.syncVisualToBody();
       return;
     }
@@ -257,6 +267,10 @@ export class Player {
     };
   }
 
+  setSlopeBodies(bodies: Matter.Body[]) {
+    this.slopeBodies = bodies;
+  }
+
   setPositionAndVelocity(x: number, y: number, velocity: Matter.Vector) {
     Matter.Body.setPosition(this.body, { x, y });
     Matter.Body.setVelocity(this.body, velocity);
@@ -265,9 +279,12 @@ export class Player {
     this.lastGroundedAtMs = Number.NEGATIVE_INFINITY;
     this.lastSlopeContactAtMs = Number.NEGATIVE_INFINITY;
     this.lastWallBounceAtMs = Number.NEGATIVE_INFINITY;
+    this.lastWallBounceNormalX = 0;
+    this.wallBounceArmed = false;
+    this.hadSupportContactLastStep = false;
+    this.lastSupportVelocityX = 0;
     this.preStepVelocity = { ...velocity };
     this.jumpChargeMs = 0;
-    this.jumpChargeDirection = 0;
     this.wasJumpDown = false;
     this.isChargingJump = false;
     this.syncVisualToBody();
@@ -300,30 +317,24 @@ export class Player {
     }
 
     if (isGrounded && isJumpDown) {
-      if (moveDirection !== 0) {
-        this.jumpChargeDirection = moveDirection as -1 | 1;
-      }
-
       this.jumpChargeMs += deltaMs;
 
       if (this.jumpChargeMs >= PLAYER_CONFIG.jumpMaxHoldMs) {
-        this.jump(moveDirection || this.jumpChargeDirection);
+        this.jump(moveDirection);
       }
     }
 
     if (this.wasJumpDown && !isJumpDown && isGrounded) {
       if (this.jumpChargeMs >= PLAYER_CONFIG.jumpMinHoldMs) {
-        this.jump(moveDirection || this.jumpChargeDirection);
+        this.jump(moveDirection);
       } else {
         this.jumpChargeMs = 0;
-        this.jumpChargeDirection = 0;
         this.isChargingJump = false;
       }
     }
 
     if (!isJumpDown && !isGrounded) {
       this.jumpChargeMs = 0;
-      this.jumpChargeDirection = 0;
       this.isChargingJump = false;
     }
   }
@@ -333,6 +344,55 @@ export class Player {
     const canBecomeGrounded =
       this.physicsTimeMs >= this.ignoreGroundUntilMs &&
       this.body.velocity.y >= -0.5;
+    const slopeContacts = contacts.filter((contact) => (
+      contact.obstacle.obstacleType === 'slope' &&
+      contact.obstacle.slopeDownhill &&
+      isSlopeSurfaceContact(
+        contact.normal,
+        contact.obstacle.slopeDownhill,
+      )
+    ));
+    const contactSlope = this.pickBestSlopeContact(slopeContacts);
+    const nearbySlope = this.findTopSlopeSurface();
+    const slopeSurface = this.pickBestSlopeSurface([
+      ...(contactSlope
+        ? [{
+            obstacleBody: contactSlope.obstacleBody,
+            obstacle: contactSlope.obstacle,
+          }]
+        : []),
+      ...(nearbySlope ? [nearbySlope] : []),
+    ]);
+
+    const wasSlopeSliding = this.isSlopeSliding();
+
+    if (slopeSurface && canBecomeGrounded) {
+      const overlapRatio = this.getHorizontalOverlapRatio(slopeSurface.obstacleBody);
+      const canStandOnSupportedEdge = canStandOnSupportedSlope(
+        overlapRatio,
+        slopeSurface.obstacle.standableSlope === true,
+      );
+
+      if (wasSlopeSliding || !canStandOnSupportedEdge) {
+        this.groundType = null;
+        this.lastGroundedAtMs = Number.NEGATIVE_INFINITY;
+        this.hadSupportContactLastStep = false;
+        this.activeSlope = {
+          downhill: slopeSurface.obstacle.slopeDownhill as Matter.Vector,
+        };
+        this.lastSlopeContactAtMs = this.physicsTimeMs;
+        this.applySlopeSlide(this.activeSlope, deltaMs);
+        return;
+      }
+    }
+
+    if (wasSlopeSliding && this.activeSlope && !slopeSurface) {
+      this.groundType = null;
+      this.lastGroundedAtMs = Number.NEGATIVE_INFINITY;
+      this.hadSupportContactLastStep = false;
+      return;
+    }
+
     const flatGroundContacts = canBecomeGrounded
       ? contacts.filter((contact) => (
           (contact.obstacle.obstacleType === 'normal' ||
@@ -349,42 +409,20 @@ export class Player {
       this.setGrounded(groundContact.obstacle.obstacleType as GroundType);
       this.activeSlope = null;
       this.stabilizeFlatGround();
+      this.recordSupportContact();
       return;
     }
 
-    const slopeContacts = contacts.filter((contact) => (
-      contact.obstacle.obstacleType === 'slope' &&
-      contact.obstacle.slopeDownhill &&
-      isSlopeSurfaceContact(
-        contact.normal,
-        contact.obstacle.slopeDownhill,
-      )
-    ));
-    const slopeContact = this.pickBestSlopeContact(slopeContacts);
-
-    if (slopeContact && canBecomeGrounded) {
-      const overlapRatio = this.getHorizontalOverlapRatio(slopeContact.obstacleBody);
-      const canStandOnSupportedEdge = canStandOnSupportedSlope(
-        overlapRatio,
-        slopeContact.obstacle.standableSlope === true,
-      );
-
-      if (canStandOnSupportedEdge) {
-        this.setGrounded('normal');
-        this.activeSlope = null;
-        this.stabilizeFlatGround();
-        return;
-      }
-
+    if (this.hadSupportContactLastStep && !this.wallBounceArmed) {
+      Matter.Body.setVelocity(this.body, {
+        x: this.lastSupportVelocityX,
+        y: this.body.velocity.y,
+      });
       this.groundType = null;
       this.lastGroundedAtMs = Number.NEGATIVE_INFINITY;
-      this.activeSlope = {
-        downhill: slopeContact.obstacle.slopeDownhill as Matter.Vector,
-      };
-      this.lastSlopeContactAtMs = this.physicsTimeMs;
-      this.applySlopeSlide(this.activeSlope, deltaMs);
-      return;
     }
+
+    this.hadSupportContactLastStep = false;
 
     if (!this.isSlopeSliding()) {
       this.activeSlope = null;
@@ -409,15 +447,73 @@ export class Player {
     })[0];
   }
 
+  private pickBestSlopeSurface(surfaces: SlopeSurface[]) {
+    return surfaces.sort(
+      (a, b) =>
+        this.getHorizontalOverlapRatio(b.obstacleBody) -
+        this.getHorizontalOverlapRatio(a.obstacleBody),
+    )[0];
+  }
+
+  private findTopSlopeSurface(): SlopeSurface | undefined {
+    const playerFootY = this.body.bounds.max.y;
+
+    return this.pickBestSlopeSurface(
+      this.slopeBodies
+        .map((obstacleBody) => ({
+          obstacleBody,
+          obstacle: getObstaclePhysicsData(obstacleBody),
+        }))
+        .filter((surface): surface is SlopeSurface => {
+          if (
+            !surface.obstacle?.slopeDownhill ||
+            surface.obstacle.slideSurfaceFacesUp === false ||
+            this.getHorizontalOverlapRatio(surface.obstacleBody) <= 0
+          ) {
+            return false;
+          }
+
+          const sampleX = Phaser.Math.Clamp(
+            this.body.position.x,
+            surface.obstacleBody.bounds.min.x,
+            surface.obstacleBody.bounds.max.x,
+          );
+          const surfaceY = this.getSlopeSurfaceY(surface.obstacleBody, sampleX);
+
+          if (surfaceY === null) {
+            return false;
+          }
+
+          const distanceToSurface = surfaceY - playerFootY;
+
+          return (
+            distanceToSurface <= PLAYER_CONFIG.slopeTopActivationDistance &&
+            distanceToSurface >= -PLAYER_CONFIG.slopeTopPenetrationTolerance
+          );
+        }),
+    );
+  }
+
   private resolveWallBounce() {
-    if (this.physicsTimeMs - this.lastWallBounceAtMs < PLAYER_CONFIG.wallBounceCooldownMs) {
+    if (this.isSlopeSliding() || this.findTopSlopeSurface()) {
       return false;
     }
 
     const moveDirection = this.getMoveDirection();
     const candidates = [...this.contacts.values()]
       .map((contact) => {
-        if (!contact.started || contact.obstacle.obstacleType === 'finish') {
+        if (
+          (!contact.started && !this.wallBounceArmed) ||
+          contact.obstacle.obstacleType === 'finish'
+        ) {
+          return null;
+        }
+
+        if (isWallBounceCooldownBlocked(
+          this.physicsTimeMs - this.lastWallBounceAtMs,
+          this.lastWallBounceNormalX,
+          contact.normal.x,
+        )) {
           return null;
         }
 
@@ -446,6 +542,8 @@ export class Player {
     });
     Matter.Body.setVelocity(this.body, nextVelocity);
     this.lastWallBounceAtMs = this.physicsTimeMs;
+    this.lastWallBounceNormalX = impact.contact.normal.x;
+    this.wallBounceArmed = false;
     this.preStepVelocity = nextVelocity;
 
     return true;
@@ -454,6 +552,12 @@ export class Player {
   private setGrounded(groundType: GroundType) {
     this.groundType = groundType;
     this.lastGroundedAtMs = this.physicsTimeMs;
+    this.wallBounceArmed = false;
+  }
+
+  private recordSupportContact() {
+    this.hadSupportContactLastStep = true;
+    this.lastSupportVelocityX = this.preStepVelocity.x;
   }
 
   private stabilizeFlatGround() {
@@ -567,8 +671,9 @@ export class Player {
     this.activeSlope = null;
     this.lastGroundedAtMs = Number.NEGATIVE_INFINITY;
     this.ignoreGroundUntilMs = this.physicsTimeMs + JUMP_GROUND_IGNORE_MS;
+    this.wallBounceArmed = true;
+    this.hadSupportContactLastStep = false;
     this.jumpChargeMs = 0;
-    this.jumpChargeDirection = 0;
     this.wasJumpDown = false;
     this.isChargingJump = false;
     this.wasGroundedAtStepStart = false;
@@ -580,6 +685,35 @@ export class Player {
       Math.max(this.body.bounds.min.x, body.bounds.min.x);
 
     return Phaser.Math.Clamp(overlap / PLAYER_CONFIG.width, 0, 1);
+  }
+
+  private getSlopeSurfaceY(body: Matter.Body, worldX: number) {
+    const slopeEdge = body.vertices
+      .map((vertex, index) => {
+        const nextVertex = body.vertices[(index + 1) % body.vertices.length];
+
+        return {
+          start: vertex,
+          end: nextVertex,
+          deltaX: nextVertex.x - vertex.x,
+          deltaY: nextVertex.y - vertex.y,
+        };
+      })
+      .filter((edge) => Math.abs(edge.deltaX) > 1 && Math.abs(edge.deltaY) > 1)
+      .sort((a, b) => Math.abs(b.deltaX) - Math.abs(a.deltaX))[0];
+
+    if (!slopeEdge) {
+      return null;
+    }
+
+    const clampedX = Phaser.Math.Clamp(
+      worldX,
+      Math.min(slopeEdge.start.x, slopeEdge.end.x),
+      Math.max(slopeEdge.start.x, slopeEdge.end.x),
+    );
+    const ratio = (clampedX - slopeEdge.start.x) / slopeEdge.deltaX;
+
+    return slopeEdge.start.y + slopeEdge.deltaY * ratio;
   }
 
   private setStaticFrame(textureKey: string, frameName: string) {

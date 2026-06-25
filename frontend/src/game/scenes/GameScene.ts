@@ -57,6 +57,7 @@ export class GameScene extends Phaser.Scene {
         PLAYER_CONFIG.spawnX,
         mapData.definition.sectionHeight - PLAYER_CONFIG.groundOffset - PLAYER_CONFIG.height / 2,
       );
+      this.updatePlayerSlopeBodies();
       void this.prefetchAdjacentSections();
 
       Matter.Events.on(this.engine, 'collisionStart', this.handleCollisionStart);
@@ -214,6 +215,7 @@ export class GameScene extends Phaser.Scene {
     destroyLevel(this.engine, this.level);
     this.activeSectionIndex = nextSectionIndex;
     this.level = createLevel(this, this.engine, this.mapData, this.activeSectionIndex);
+    this.updatePlayerSlopeBodies();
     this.player.setPositionAndVelocity(nextPlayerX, nextPlayerY, snapshot.velocity);
     void this.prefetchAdjacentSections();
   }
@@ -302,6 +304,18 @@ export class GameScene extends Phaser.Scene {
 
     const onFinish = this.registry.get('onFinish') as (() => void) | undefined;
     onFinish?.();
+  }
+
+  private updatePlayerSlopeBodies() {
+    if (!this.player || !this.level) {
+      return;
+    }
+
+    this.player.setSlopeBodies(
+      this.level.physicsBodies.filter(
+        (body) => getObstaclePhysicsData(body)?.obstacleType === 'slope',
+      ),
+    );
   }
 
   private handleShutdown() {

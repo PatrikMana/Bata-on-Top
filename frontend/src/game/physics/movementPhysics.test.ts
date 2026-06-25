@@ -6,6 +6,7 @@ import {
   getSlopeSlideVelocity,
   getWallBounce,
   isSlopeSurfaceContact,
+  isWallBounceCooldownBlocked,
 } from './movementPhysics';
 
 describe('wall bounce', () => {
@@ -47,6 +48,19 @@ describe('wall bounce', () => {
     expect(result).toBeNull();
   });
 
+  it('bounces from the upper corner of a one-block wall while rising', () => {
+    const result = getWallBounce({
+      preStepVelocity: { x: 6, y: -12 },
+      normal: { x: -Math.SQRT1_2, y: -Math.SQRT1_2 },
+      moveDirection: 1,
+      wasGrounded: false,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result?.velocity.x).toBeLessThan(0);
+    expect(result?.velocity.y).toBeLessThan(0);
+  });
+
   it('does not bounce while walking into a wall on the ground', () => {
     const result = getWallBounce({
       preStepVelocity: { x: 5, y: 0 },
@@ -56,6 +70,11 @@ describe('wall bounce', () => {
     });
 
     expect(result).toBeNull();
+  });
+
+  it('allows an immediate bounce from the opposite wall', () => {
+    expect(isWallBounceCooldownBlocked(40, -1, -1)).toBe(true);
+    expect(isWallBounceCooldownBlocked(40, -1, 1)).toBe(false);
   });
 });
 
@@ -109,9 +128,9 @@ describe('slope movement', () => {
     expect(velocity.y).toBeGreaterThan(0);
   });
 
-  it('allows the supported edge only before the 75 percent threshold', () => {
-    expect(canStandOnSupportedSlope(0.74, true)).toBe(true);
-    expect(canStandOnSupportedSlope(0.75, true)).toBe(false);
+  it('allows the supported edge only before the 60 percent threshold', () => {
+    expect(canStandOnSupportedSlope(0.59, true)).toBe(true);
+    expect(canStandOnSupportedSlope(0.6, true)).toBe(false);
     expect(canStandOnSupportedSlope(0.2, false)).toBe(false);
   });
 
