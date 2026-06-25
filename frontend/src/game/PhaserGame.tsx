@@ -5,7 +5,7 @@ import { createGameConfig } from './gameConfig';
 type PhaserGameProps = {
   isPaused: boolean;
   mapId: string;
-  onFinish: () => void;
+  onFinish: (finishedAtMs: number) => void;
 };
 
 export function PhaserGame({ isPaused, mapId, onFinish }: PhaserGameProps) {
@@ -23,7 +23,11 @@ export function PhaserGame({ isPaused, mapId, onFinish }: PhaserGameProps) {
     }
 
     const game = new Phaser.Game(
-      createGameConfig(containerRef.current, mapId, () => onFinishRef.current()),
+      createGameConfig(
+        containerRef.current,
+        mapId,
+        (finishedAtMs) => onFinishRef.current(finishedAtMs),
+      ),
     );
     gameRef.current = game;
 

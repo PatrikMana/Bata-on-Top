@@ -51,6 +51,11 @@ function App() {
   const [keyboardRegions, setKeyboardRegions] = useState<Record<string, KeyboardRegion>>({});
   const activeRunRef = useRef<StartRunResponse | null>(null);
   const isFinishingRunRef = useRef(false);
+  const runSessionIdRef = useRef(0);
+  const pendingFinishRef = useRef<{
+    runSessionId: number;
+    fallbackTimeMs: number;
+  } | null>(null);
 
   const isRunPaused = pauseStartedAtMs !== null;
   const showLanguageSwitcher = screen !== 'playing' || isRunPaused;
@@ -115,7 +120,7 @@ function App() {
       void heartbeatRun({
         runId: activeRun.runId,
         runToken: activeRun.runToken,
-      });
+      }).catch(() => undefined);
     }, RUN_HEARTBEAT_INTERVAL_MS);
 
     return () => {
@@ -158,11 +163,14 @@ function App() {
   }
 
   function startMap(map: AvailableMap, runPlayerName = playerName) {
+    const runSessionId = runSessionIdRef.current + 1;
+    runSessionIdRef.current = runSessionId;
     const runStartRequestId = runStartRequestIdRef.current + 1;
     runStartRequestIdRef.current = runStartRequestId;
     activeRunRef.current = null;
     setActiveRun(null);
     isFinishingRunRef.current = false;
+    pendingFinishRef.current = null;
     setSelectedMap(map);
     setRunInstanceId((currentId) => currentId + 1);
     resetRunClock();
@@ -174,9 +182,24 @@ function App() {
     })
       .then((run) => {
         if (
-          runStartRequestIdRef.current !== runStartRequestId ||
-          isFinishingRunRef.current
+          runStartRequestIdRef.current !== runStartRequestId
+          || runSessionIdRef.current !== runSessionId
         ) {
+          void abortRun({
+            runId: run.runId,
+            runToken: run.runToken,
+          }).catch(() => undefined);
+          return;
+        }
+
+        const pendingFinish = pendingFinishRef.current;
+
+        if (
+          isFinishingRunRef.current
+          && pendingFinish?.runSessionId === runSessionId
+        ) {
+          pendingFinishRef.current = null;
+          submitFinishedRun(run, runSessionId, pendingFinish.fallbackTimeMs);
           return;
         }
 
@@ -240,15 +263,16 @@ function App() {
 
   async function abortActiveRun() {
     runStartRequestIdRef.current += 1;
+    runSessionIdRef.current += 1;
+    pendingFinishRef.current = null;
     const run = activeRunRef.current;
+    activeRunRef.current = null;
+    isFinishingRunRef.current = false;
+    setActiveRun(null);
 
     if (!run) {
       return;
     }
-
-    activeRunRef.current = null;
-    isFinishingRunRef.current = false;
-    setActiveRun(null);
 
     await abortRun({
       runId: run.runId,
@@ -257,10 +281,16 @@ function App() {
   }
 
   function handleRestartRun() {
-    void (async () => {
-      await abortActiveRun();
-      await startMap(selectedMap);
-    })();
+    const previousRun = activeRunRef.current;
+
+    startMap(selectedMap);
+
+    if (previousRun) {
+      void abortRun({
+        runId: previousRun.runId,
+        runToken: previousRun.runToken,
+      }).catch(() => undefined);
+    }
   }
 
   async function loadLeaderboard(map = leaderboardMap) {
@@ -288,43 +318,59 @@ function App() {
     void loadLeaderboard(map);
   }
 
-  function handleGameFinish() {
+  function handleGameFinish(finishedAtMs: number) {
     if (screen !== 'playing' || startTimeMs === null || isFinishingRunRef.current) {
       return;
     }
 
     isFinishingRunRef.current = true;
-    const finishedElapsedMs = Date.now() - startTimeMs - totalPausedMs;
+    const runSessionId = runSessionIdRef.current;
+    const finishedElapsedMs = finishedAtMs - startTimeMs - totalPausedMs;
     const run = activeRunRef.current;
 
+    setElapsedMs(finishedElapsedMs);
+    setFinalTimeMs(finishedElapsedMs);
+    setPauseStartedAtMs(null);
+    setStartTimeMs(null);
+    setScreen('finish');
+
     if (!run) {
-      setElapsedMs(finishedElapsedMs);
-      setFinalTimeMs(finishedElapsedMs);
-      setPauseStartedAtMs(null);
-      setStartTimeMs(null);
-      setScreen('finish');
+      pendingFinishRef.current = {
+        runSessionId,
+        fallbackTimeMs: finishedElapsedMs,
+      };
       return;
     }
 
     activeRunRef.current = null;
     setActiveRun(null);
+    submitFinishedRun(run, runSessionId, finishedElapsedMs);
+  }
 
+  function submitFinishedRun(
+    run: StartRunResponse,
+    runSessionId: number,
+    fallbackTimeMs: number,
+  ) {
     void finishRun({
       runId: run.runId,
       runToken: run.runToken,
     })
       .then((finishedRun) => {
+        if (runSessionIdRef.current !== runSessionId) {
+          return;
+        }
+
         setElapsedMs(finishedRun.timeMs);
         setFinalTimeMs(finishedRun.timeMs);
       })
       .catch(() => {
-        setElapsedMs(finishedElapsedMs);
-        setFinalTimeMs(finishedElapsedMs);
-      })
-      .finally(() => {
-        setPauseStartedAtMs(null);
-        setStartTimeMs(null);
-        setScreen('finish');
+        if (runSessionIdRef.current !== runSessionId) {
+          return;
+        }
+
+        setElapsedMs(fallbackTimeMs);
+        setFinalTimeMs(fallbackTimeMs);
       });
   }
 

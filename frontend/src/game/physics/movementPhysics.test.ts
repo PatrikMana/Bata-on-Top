@@ -128,9 +128,11 @@ describe('slope movement', () => {
     expect(velocity.y).toBeGreaterThan(0);
   });
 
-  it('allows the supported edge only before the 60 percent threshold', () => {
-    expect(canStandOnSupportedSlope(0.59, true)).toBe(true);
-    expect(canStandOnSupportedSlope(0.6, true)).toBe(false);
+  it('allows the supported edge only before the configured overlap threshold', () => {
+    const threshold = PLAYER_CONFIG.slopeSlideMinOverlapRatio;
+
+    expect(canStandOnSupportedSlope(threshold - 0.01, true)).toBe(true);
+    expect(canStandOnSupportedSlope(threshold, true)).toBe(false);
     expect(canStandOnSupportedSlope(0.2, false)).toBe(false);
   });
 

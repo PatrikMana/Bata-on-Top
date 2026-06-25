@@ -6,7 +6,7 @@ import { PreloadScene } from './scenes/PreloadScene';
 export function createGameConfig(
   parent: HTMLElement,
   mapId: string,
-  onFinish: () => void,
+  onFinish: (finishedAtMs: number) => void,
 ): Phaser.Types.Core.GameConfig {
   return {
     type: Phaser.AUTO,

@@ -302,8 +302,10 @@ export class GameScene extends Phaser.Scene {
     this.isFinished = true;
     this.player?.stop();
 
-    const onFinish = this.registry.get('onFinish') as (() => void) | undefined;
-    onFinish?.();
+    const onFinish = this.registry.get('onFinish') as
+      | ((finishedAtMs: number) => void)
+      | undefined;
+    onFinish?.(Date.now());
   }
 
   private updatePlayerSlopeBodies() {
