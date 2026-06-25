@@ -1,6 +1,5 @@
 import { getHttpErrorMessage } from '../i18n/resolveErrorMessage';
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api';
+import { API_BASE_URL } from './apiConfig';
 
 export type StartRunResponse = {
   runId: number;
@@ -86,13 +85,12 @@ export async function abortRun(
 }
 
 export function sendAbortRunBeacon(payload: FinishRunPayload): boolean {
-  const body = JSON.stringify({
-    runId: payload.runId,
+  const body = new URLSearchParams({
+    runId: String(payload.runId),
     runToken: payload.runToken,
   });
-  const blob = new Blob([body], { type: 'application/json' });
 
-  return navigator.sendBeacon(`${API_BASE_URL}/runs/abort`, blob);
+  return navigator.sendBeacon(`${API_BASE_URL}/runs/abort`, body);
 }
 
 export async function finishRun(
